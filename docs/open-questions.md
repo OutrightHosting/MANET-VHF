@@ -17,6 +17,8 @@ yet in any of them.
 | [OQ-0026](#oq-0026) | TX duty cycle — measured 20% worst node, vs a handheld's 5% | Phase 2 | Thermal, battery, **and who dies first** | Open |
 | [OQ-0027](#oq-0027) | Which VHF band to request from Ofcom | **Before the licence application** | Whether the CC1200 runs in a characterised band | Open |
 | [OQ-0028](#oq-0028) | Do two co-slot relays carrying an identical payload decode? | Phase 1 | **Every delivery figure in the project.** 7 hops vs 3 | **Open, blocking** |
+| [OQ-0029](#oq-0029) | FFI deferred automatic relaying as possibly infeasible in 25 kHz | Phase 0 | Whether the core premise holds | **Open — risk register** |
+| [OQ-0030](#oq-0030) | Are we optimising the wrong thing — hop count instead of range per hop? | **Now, it is a strategy question** | Direction of the whole MAC effort | **Open** |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -38,7 +40,7 @@ yet in any of them.
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
 | [OQ-0021](#oq-0021) | Many-to-many — streams now cross; `dst` still inert | **Phase 0** | Addressed calls; concurrent-stream quality | Open — no longer total failure |
 | [OQ-0022](#oq-0022) | ~~Which latency budget applies~~ | — | — | **Closed** — 500 ms mouth-to-ear |
-| [OQ-0023](#oq-0023) | ~~Vegetation model wrong by 8×~~ | — | — | **Closed** — ITU-R P.833-10 eq (1) |
+| [OQ-0023](#oq-0023) | Vegetation model fixed; **exponent 2.97 now challenged by FFI's γ=4** | — | Every range figure in the project | **RE-OPENED** — see [nbwf-lessons.md §4](nbwf-lessons.md) |
 
 ---
 
@@ -1411,3 +1413,62 @@ the bench gives a real figure.
 [ADR-0008](decisions/0008-four-slots.md) for the identical-payload case only. Different
 payloads still use it, and it is still uncited — see the
 [literature review](literature-review.md).
+
+## OQ-0029
+### FFI looked at our architecture and deferred it
+
+[FFI-rapport 2009/01894](reference-nbwf-ffi-2009-01894.pdf) §4.4, on automatic relaying of
+voice without dedicated relay nodes — which is precisely this project's premise, every
+handset a relay: they state they are *"not sure if such a protocol is feasible within 25 kHz
+bandwidth"*, that extensive simulation is needed to answer it, and that to produce a draft
+specification sooner they propose dedicated relays instead. Any node may relay **if configured
+to do so**. Configured, not discovered.
+
+**Why this is not fatal.** They carried constraints we do not: 250 ms mouth-to-ear rather than
+500, subnets up to 250 nodes, four vocoders without transcoding, simultaneous IP data with
+QoS classes, and NATO-wide interoperability. Removing four of five is exactly what turns
+infeasible into feasible, and our simulator now shows one slot per hop and 95% delivery over
+the hill case.
+
+**Why it stays open anyway.** Our result rests on [OQ-0028](#oq-0028), which is unverified,
+and on a propagation model FFI's own numbers say is optimistic ([OQ-0023](#oq-0023)). The one
+published team to attempt this concluded it might not fit. That is a fact about the problem,
+not about them, and it should be visible next to the delivery figures rather than absent.
+
+**What would close it.** Either the Phase 1 bench confirming OQ-0028 and OQ-0001 — at which
+point we have something FFI did not, namely measurements — or finding out what happened to
+NBWF after 2011. If automatic relaying was later added to the STANAG, that is the strongest
+possible answer. If NBWF was never fielded, that is informative too.
+
+## OQ-0030
+### Are we optimising hop count when we should be optimising range per hop?
+
+[FFI §4.1](reference-nbwf-ffi-2009-01894.pdf) reach the opposite conclusion to ours. Their
+lowest-rate mode reaches three to four times as far as their highest, and for multicast their
+recommendation is to use the **lowest** data rate in order to reach as many nodes as possible
+in a single hop. At that rate they need only 1–2 relays to cover more than 50 km.
+
+This project has spent its effort on **hop count** — four hops, then seven, chasing twelve.
+[ADR-0011](decisions/0011-barrage-relaying.md) is entirely about making hops cheaper. FFI make
+hops unnecessary instead.
+
+The case for their approach is not weak:
+
+- Every hop costs latency, and the latency budget is what caps reach in the first place.
+- Every hop costs airtime, which is [OQ-0026](#oq-0026)'s duty cycle problem — already at
+  20.4% on the worst node, and made 34% worse by barrage.
+- Every hop is another radio that must be in the right place and stay there. A design needing
+  seven hops is more fragile than one needing two at equal coverage, and the users here are
+  not a fire team holding a formation.
+- Link margin is spendable on a lower vocoder rate and more FEC, both of which we want anyway.
+
+The counter is that our radios are 5 W handhelds with helical antennas at head height, not
+50 W vehicular sets — our per-hop range in woodland is ~4.4 km against their 22 km, so the
+same coverage genuinely needs more hops. And the terrain case in
+[ADR-0010](decisions/0010-terrain-diffraction.md) is a blocking problem, not a range problem:
+no amount of link margin gets through a ridge, only a radio standing on it.
+
+**So the honest position is that both are true and we have never traded them off explicitly.**
+The bench measurement that decides it is [OQ-0001](#oq-0001) — if a lower-rate mode buys
+substantially more range in the same channel, the right answer may be fewer, longer hops with
+a lower vocoder, not more, cheaper hops. That is a different product.
