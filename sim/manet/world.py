@@ -247,8 +247,9 @@ class Simulation:
         if pid is not None:
             rx.heard_payloads.setdefault(pid, slot)
 
-        # The forwarding rule: relay only for a neighbour that selected us.
-        if rx.nb.should_relay_for(pdu.prev):
+        # The forwarding rule: relay if we reach somebody the sender does not. Decided
+        # from local knowledge, so it survives beacons being unable to get through.
+        if rx.nb.should_relay(pdu.prev):
             if rx.sched.relay(pdu, slot, rx.addr) == 0:
                 rx.relayed += 1
 

@@ -61,6 +61,7 @@ _SIGS = {
     "mb_nb_beacon": (_UL, [_P, _U8P, _UL, _U8P, _U8P, _UL]),
     "mb_mpr_select": (_UL, [_P, _P, _U8P, _UL]),
     "mb_mpr_covers_all": (ctypes.c_int, [_P, _P]),
+    "mb_mpr_should_relay": (ctypes.c_int, [_P, _U]),
     "mb_dedup_init": (None, [_P]),
     "mb_dedup_check": (ctypes.c_int, [_P, _U, _U, _ULL]),
     "mb_dedup_expire": (_UL, [_P, _ULL, _ULL]),
@@ -215,7 +216,12 @@ class NeighbourTable:
         return int(_lib.mb_nb_link(self.buf, addr))
 
     def should_relay_for(self, frm):
+        """Legacy gate: did `frm` explicitly name us as a relay? Needs a fresh beacon."""
         return bool(_lib.mb_nb_should_relay_for(self.buf, frm))
+
+    def should_relay(self, frm):
+        """Do we reach anyone `frm` does not? Decided from local knowledge alone."""
+        return bool(_lib.mb_mpr_should_relay(self.buf, frm))
 
     @property
     def count(self):

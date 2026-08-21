@@ -225,3 +225,53 @@ bool manet_mpr_covers_all(const manet_nb_table_t *t, const manet_mpr_set_t *s)
     }
     return true;
 }
+
+bool manet_mpr_should_relay(const manet_nb_table_t *t, manet_addr_t from)
+{
+    const manet_neighbour_t *e;
+    manet_addr_t             mine[MANET_MAX_NEIGHBOURS];
+    size_t                   n;
+    size_t                   i;
+
+    if (t == NULL) {
+        return false;
+    }
+
+    /*
+     * Hearing the sender is enough. A two-way link is required to ROUTE a reply, but
+     * this is a broadcast being carried onward — the sender does not need to hear us
+     * for that to be useful, and demanding symmetry here makes relaying depend on a
+     * beacon arriving, which under load is exactly what does not happen.
+     */
+    e = manet_nb_get(t, from);
+    if (e == NULL || e->link == MANET_LINK_NONE) {
+        return false;
+    }
+
+    /*
+     * If we have never heard what the sender can reach, we cannot prune, so we relay.
+     * Unknown means carry it: an unnecessary relay costs one slot and is cancelled by
+     * duplicate suppression, while a missed relay silently blacks out everyone beyond
+     * this point. The asymmetry of those two costs decides the default.
+     */
+    if (e->advertised_count == 0u) {
+        return true;
+    }
+
+    n = manet_nb_symmetric(t, mine, (size_t)MANET_MAX_NEIGHBOURS);
+    if (n > (size_t)MANET_MAX_NEIGHBOURS) {
+        n = (size_t)MANET_MAX_NEIGHBOURS;
+    }
+
+    for (i = 0u; i < n; i++) {
+        if (mine[i] == from) {
+            continue;
+        }
+        /* Somebody we can reach and the sender cannot. Relaying carries the frame
+         * somewhere it would not otherwise go, which is the whole job. */
+        if (!manet_nb_reaches(t, from, mine[i])) {
+            return true;
+        }
+    }
+    return false;
+}

@@ -41,6 +41,29 @@ void manet_mpr_select(const manet_nb_table_t *t, manet_mpr_set_t *out);
 
 bool manet_mpr_contains(const manet_mpr_set_t *s, manet_addr_t a);
 
+/*
+ * Should this radio relay a frame it just received from `from`?
+ *
+ * True if this radio can reach at least one two-way neighbour that `from` cannot. If it
+ * reaches nobody new, relaying adds nothing and it stays quiet.
+ *
+ * This is decided entirely from what this radio already knows — its own neighbours, and
+ * the neighbour list `from` last advertised. It does NOT require `from` to have named
+ * this radio as a relay.
+ *
+ * That difference is what makes the network work while people are moving. The selected-
+ * relay flag can only arrive in a beacon, and beacons are precisely what cannot get
+ * through while a transmission is in progress; a radio that has not heard the beacon
+ * naming it simply does not relay, and the chain dies. This rule degrades far more
+ * gracefully: stale knowledge makes a radio relay when it needn't, which duplicate
+ * suppression and passive acknowledgement already handle, rather than not relay when it
+ * must, which nothing recovers from.
+ *
+ * The clustered case still costs nothing. When every radio is in direct range of every
+ * other, nobody reaches anyone the sender does not, so nothing relays.
+ */
+bool manet_mpr_should_relay(const manet_nb_table_t *t, manet_addr_t from);
+
 /* True if every two-hop neighbour is reachable through the set. Used by the redundancy
  * pass, and worth asserting in tests: a set that fails this is a coverage hole. */
 bool manet_mpr_covers_all(const manet_nb_table_t *t, const manet_mpr_set_t *s);

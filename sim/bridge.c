@@ -276,3 +276,8 @@ EXPORT unsigned long mb_dedup_expire(void *d, unsigned long long slot,
     return (unsigned long)manet_dedup_expire((manet_dedup_t *)d, (uint64_t)slot,
                                              (uint64_t)age);
 }
+
+EXPORT int mb_mpr_should_relay(const void *t, unsigned from)
+{
+    return manet_mpr_should_relay((const manet_nb_table_t *)t, (manet_addr_t)from) ? 1 : 0;
+}
