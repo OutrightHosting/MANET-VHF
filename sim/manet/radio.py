@@ -133,6 +133,13 @@ def usable_range_m(env, budget, lo=1.0, hi=200000.0):
     return lo
 
 
+def _payload_key(payload):
+    """What makes two transmissions 'the same frame'. Origin and sequence identify a
+    payload uniquely across the whole network; the relay carrying it is irrelevant."""
+    pdu = payload[0]
+    return (pdu.src, pdu.seq, pdu.type)
+
+
 def _dbm_to_mw(dbm):
     return 10.0 ** (dbm / 10.0)
 
@@ -154,6 +161,9 @@ class Channel:
         # 11 dB; a ridge costs tens. Flat by default so existing scenarios are unchanged.
         self.terrain = terrain or Flat()
         self._loss_cache = {}
+
+    # Off by default until the bench says otherwise — see OQ-0028.
+    CONCURRENT_IDENTICAL = True
 
     def rx_dbm(self, distance_m):
         """Received power over flat ground. Kept for probes and the budget tool."""
@@ -193,7 +203,29 @@ class Channel:
             return None  # nothing audible at all
 
         if len(powers) > 1:
-            interference_mw = sum(_dbm_to_mw(p[0]) for p in powers[1:])
+            # Copies of the SAME payload are not interference. This is the whole mechanism
+            # of a Barrage Relay Network (TrellisWare TSM) and of Glossy: several relays
+            # transmit the identical waveform in the identical slot, and the receiver sees
+            # what looks like multipath rather than a collision. Modelling them as mutual
+            # jamming is what forced a per-frame election, and the election was costing
+            # 6.32 slots per hop against ADR-0002's promised one.
+            #
+            # Conservative form deliberately: the strongest copy is decoded and the other
+            # copies are merely EXCLUDED from the interference sum. No combining gain is
+            # claimed, though Glossy measures one. Different payloads still collide exactly
+            # as before, so OQ-0013's spatial-reuse result is untouched.
+            #
+            # THE ASSUMPTION THIS RESTS ON, and it is a bench question, not a settled one:
+            # the copies must land inside a symbol of each other. At 9600 sym/s a symbol is
+            # 104 us and a few km of path difference is ~10 us, so timing is comfortable
+            # with GPS-disciplined slots. Carrier frequency offset between transmitters is
+            # the real risk — it beats, and destructive periods need FEC to ride through.
+            # Same dependency as the preamble figure: a disciplined LO. See OQ-0028.
+            if self.CONCURRENT_IDENTICAL:
+                others = [p for p in powers[1:] if _payload_key(p[2]) != _payload_key(best_payload)]
+            else:
+                others = powers[1:]
+            interference_mw = sum(_dbm_to_mw(p[0]) for p in others)
             if interference_mw > 0.0:
                 interference_dbm = 10.0 * math.log10(interference_mw)
                 if (best_dbm - interference_dbm) < self.budget.capture_db:

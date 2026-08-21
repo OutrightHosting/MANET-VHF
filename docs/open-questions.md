@@ -16,6 +16,7 @@ yet in any of them.
 | [OQ-0025](#oq-0025) | PA chain from the CC1200's +16 dBm to 5 W | Phase 2 | Range. The sim assumes 37 dBm and the modem gives 16 | Open |
 | [OQ-0026](#oq-0026) | TX duty cycle — measured 20% worst node, vs a handheld's 5% | Phase 2 | Thermal, battery, **and who dies first** | Open |
 | [OQ-0027](#oq-0027) | Which VHF band to request from Ofcom | **Before the licence application** | Whether the CC1200 runs in a characterised band | Open |
+| [OQ-0028](#oq-0028) | Do two co-slot relays carrying an identical payload decode? | Phase 1 | **Every delivery figure in the project.** 7 hops vs 3 | **Open, blocking** |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1331,3 +1332,51 @@ Two notes attached to the same finding:
 - **TI's CC1190 range extender does not apply here.** It is advertised on the CC1200 product
   page as the route to +27 dBm, and it is an 850–950 MHz part reaching 500 mW. Neither the band
   nor the power is ours. The 5 W chain is a separately-sourced VHF module, [OQ-0025](#oq-0025).
+
+## OQ-0028
+### Do two co-slot relays carrying an identical payload decode?
+
+[ADR-0011](decisions/0011-barrage-relaying.md) removed the per-frame election and took the
+per-hop cost from 6.32 slots to 1.00, which took reach from four hops to seven. It rests
+entirely on one assumption, now switched on by default and affecting **every delivery figure
+in the project**:
+
+> Several relays transmitting the **same payload** in the **same slot** do not jam each other.
+
+This is what a Barrage Relay Network is, and what Glossy measures. It is not verified on our
+hardware, and it is the difference between a seven-hop product and a three-hop one.
+
+The model is deliberately conservative — the strongest copy is decoded and the other copies
+are merely excluded from the interference sum. No combining gain is claimed. Different
+payloads collide exactly as before.
+
+**What has to be true.** Copies must land within a symbol of each other. At 9600 sym/s a
+symbol is 104 µs, and a few kilometres of path difference is ~10 µs, so timing is comfortable
+with GPS-disciplined slots — the *timing* half is not the risk.
+
+**Carrier frequency offset is the risk.** Two transmitters a few hundred hertz apart produce
+a beat, and during destructive periods the composite fades. With 16% FEC there is not much to
+ride it out with. This is the same dependency as [OQ-0024](#oq-0024): a GPS-disciplined **LO**,
+not merely a disciplined slot clock. Three questions — preamble length, concurrent relaying,
+and reach — now hang off the same piece of hardware. [OQ-0003](#oq-0003) should absorb it.
+
+### Bench test
+
+Two CC1120 or CC1200 boards keyed in the same slot with the identical payload, a third
+receiving. Sweep, and measure PER at the receiver:
+
+| Sweep | Range | Decides |
+|---|---|---|
+| Relative power | 0–20 dB | Whether capture alone carries it, or combining is needed |
+| **Frequency offset** | 0 to ±1 kHz | **The one that matters.** How much LO discipline is required |
+| Timing offset | 0 to ±200 µs | How much of a symbol can be lost before it fails |
+| Number of concurrent copies | 2, 3, 4 | Whether it degrades with the crowd — barrage produces 4+ |
+
+Run the frequency sweep first. If PER stays flat to ±200 Hz, ADR-0011 stands and so do seven
+hops. If it collapses inside ±50 Hz, the election returns and the product is three hops until
+the LO is disciplined.
+
+**Note this replaces the uncited 10 dB capture assumption** in
+[ADR-0008](decisions/0008-four-slots.md) for the identical-payload case only. Different
+payloads still use it, and it is still uncited — see the
+[literature review](literature-review.md).

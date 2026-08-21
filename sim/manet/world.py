@@ -7,6 +7,8 @@ through sim/manet/core.py. Nothing in this file implements protocol behaviour, a
 starts to, that is a bug rather than a shortcut (ADR-0006).
 """
 
+import collections
+
 from .core import (
     BEACON, VOICE, PRIO_SIGNALLING, PRIO_VOICE, BROADCAST, CONFIG,
     Dedup, MprSet, NeighbourTable, Pdu, Scheduler,
@@ -68,6 +70,11 @@ class Simulation:
         self.talker = talker
         self.slot = 0
         self.tx_log = []
+        # Where the per-hop slot cost goes. ADR-0002 promises one hop per slot; the gate
+        # chain measures 1.7. These counters say which of the three gates spends it.
+        self.why = collections.Counter()
+        self.delay_hist = collections.Counter()
+        self.contender_hist = collections.Counter()
         self.collisions = 0
 
         # Payload identity for measurement only.
@@ -121,6 +128,7 @@ class Simulation:
     STAGGER = False
     NAMA_RELAY = True
     PROTECT_TALKER_PHASE = False
+    BARRAGE_RELAY = True
     DESIGNATED_RELAY = False
 
     def _schedule_beacons(self, slot):
@@ -379,15 +387,37 @@ class Simulation:
             mine = set(rx.nb.symmetric())
             contenders = [a for a in mine if rx.nb.reaches_addr(pdu.prev, a)] or list(mine)
 
+            # BARRAGE. If identical concurrent copies combine rather than collide
+            # (Channel.CONCURRENT_IDENTICAL), there is nothing to elect: everyone holding
+            # the frame fires in the very next slot, which is ADR-0002's pipelining rule
+            # exactly as written and exactly as TrellisWare TSM and Glossy implement it.
+            # The election existed only to stop simultaneous relays jamming each other.
+            if self.BARRAGE_RELAY:
+                if rx.sched.relay(pdu, slot, rx.addr) == 0:
+                    rx.relayed += 1
+                    self.why["relayed"] += 1
+                    self.delay_hist[0] += 1
+                else:
+                    self.why["scheduler refused"] += 1
+                return
+
             for attempt in range(rank, rank + spf * 4):
                 target = slot + attempt
                 if ((target + 1) % spf) in busy:
+                    self.why["busy"] += 1
                     continue
                 if self.NAMA_RELAY and not rx.nb.nama_wins_among(target + 1, contenders):
+                    self.why["lost election"] += 1
                     continue
                 if rx.sched.relay(pdu, target, rx.addr) == 0:
                     rx.relayed += 1
+                    self.why["relayed"] += 1
+                    self.delay_hist[attempt] += 1
+                    self.contender_hist[len(contenders)] += 1
                     break
+                self.why["scheduler refused"] += 1
+            else:
+                self.why["gave up"] += 1
 
     def _payload_id(self, src, seq, slot):
         """Which origination a receipt at `slot` belongs to, disambiguating seq wrap."""

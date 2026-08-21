@@ -299,20 +299,24 @@
  * decided): 160 ms packetisation + ~60 ms de-jitter and codec leaves 280 ms of network.
  * A voice frame outliving that occupies the network to deliver audio too late to answer.
  *
- * Four is right, but NOT for the reason this comment used to give. It reasoned from a
- * 200 ms frame at 50 ms per hop; the frame is 160 ms and the slot 40 ms, which at the one
- * hop per slot ADR-0002 promises would give SEVEN. It does not give seven, because the gate
- * chain measures 1.7 slots per hop and rising with depth (2 hops 1.8 slots, 3 hops 4.2,
- * 4 hops 6.8) — relays wait on the NAMA election. 280 / (40 * 1.7) = 4.1.
+ * SEVEN, and it took fixing the per-hop cost to get there. This was 4, justified by a
+ * comment reasoning from a 200 ms frame at 50 ms per hop. At 160 ms and 40 ms slots the one
+ * hop per slot ADR-0002 promises gives seven — but the implementation was delivering 6.32
+ * slots per hop in the hill scenario, because 81.8% of relay attempts lost a NAMA election
+ * and waited for another turn.
  *
- * So the per-hop slot cost, not the bit rate, is the biggest single lever on reach:
- * recovering 1.7 -> 1.0 is worth 70% more hops at any frame size, which is more than the
- * whole 19.2 -> 22.4 kbps upgrade buys. See OQ-0009.
+ * ADR-0011 removes the election for voice relays. A hop now costs exactly one slot, and the
+ * measured chain is slightly better than the arithmetic because the first hop is direct and
+ * free: 7 hops = 6 slots = 240 ms, mouth-to-ear 460 ms against 500. Eight hops is the edge
+ * at exactly 500 and is not taken.
+ *
+ * The remaining lever is the frame. At 110 ms — which 22.4 kbps with Codec2 2400 buys, both
+ * bench questions (OQ-0001) — the same one-slot hop gives TWELVE.
  *
  * Data is not latency-bound and may use the full field.
  */
 #ifndef MANET_VOICE_TTL
-#define MANET_VOICE_TTL 4u
+#define MANET_VOICE_TTL 7u
 #endif
 
 /* Largest PDU that can ride in one slot: everything on air except the sync word.

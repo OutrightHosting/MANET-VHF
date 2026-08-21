@@ -25,6 +25,7 @@ decision stands and we stop discussing it.
 | [0008](0008-four-slots.md) | ~~Four slots per frame — forced from both directions~~ | Superseded by 0009 |
 | [0009](0009-frame-structure-with-real-preamble.md) | 120 ms frame, 4 × 30 ms, voice over two slots | Accepted |
 | [0010](0010-terrain-diffraction.md) | Terrain per-link by knife-edge diffraction, not as an environment | Accepted |
+| [0011](0011-barrage-relaying.md) | Barrage relaying: identical concurrent copies combine, election removed for voice | Accepted |
 
 ## Format
 

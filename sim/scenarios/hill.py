@@ -50,7 +50,11 @@ def three_groups(hilltop=True, per_group=4, spread=250.0, slots=1500):
     }
 
 
-def many_groups(groups=8, per_group=4, slots=1500):
+def many_groups(groups=8, per_group=4, slots=6000):
+    # 1500 slots does NOT reach steady state under barrage relaying: the worst node reads
+    # 4.5% at 1500, 60.7% at 3000 and 80.5% at 6000, because the relay set depends on
+    # neighbour tables that need several beacon intervals to fill. The election-based
+    # version plateaued by 1500, which is why this default was never questioned.
     """
     The generalisation: scatter groups across a valley system and let whoever is high up
     do the relaying. Nobody is configured as a relay and nobody needs to be.
