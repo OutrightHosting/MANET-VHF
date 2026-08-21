@@ -120,6 +120,7 @@ class Simulation:
     # cannot pay it. Coverage-based suppression now handles what the stagger was for.
     STAGGER = False
     NAMA_RELAY = True
+    DESIGNATED_RELAY = False
 
     def _schedule_beacons(self, slot):
         """
@@ -321,6 +322,32 @@ class Simulation:
             # more than the deafness it avoids.
             sources = {rx.rx_sources.get(ph) for ph in recent}
             busy = (recent - {slot % spf}) if len(sources) > 1 else set()
+            # A DESIGNATED relay does not wait. If the sender has already named this
+            # radio as one of its multipoint relays — which it advertises in every beacon,
+            # and beacons now get through because NAMA gives them collision-free slots —
+            # then there is nothing to discover and nothing to elect. Relay in the very
+            # next slot, which is the pipelining rule as originally intended.
+            #
+            # This was abandoned when beacons could not get through: a radio that missed
+            # the beacon naming it simply did not relay, and one closed gate blacked out
+            # the chain. Receiver-decided relaying fixed that at the cost of an election
+            # wait of 41-81 ms per hop, which is half the per-hop budget. With beacons
+            # reliable, the wait is no longer buying anything on the primary path.
+            #
+            # The receiver-decided path stays as the BACKUP: if no designated relay
+            # carries the frame, whoever reaches somewhere new still picks it up a slot
+            # or two later. Primary is fast, backup is thorough.
+            # OFF by default. It removes the election wait and buys a fourth hop, but a
+            # single designated relay has no backup: measured 75.7% -> 56.2% through the
+            # hill, which is the case the product exists for. Williams & Camp found the
+            # same thing — sender-decided selection degrades where receiver-decided
+            # self-heals. Four fragile hops is not better than three robust ones, and
+            # neither meets the requirement; the preamble does.
+            if self.DESIGNATED_RELAY and rx.nb.should_relay_for(pdu.prev):
+                if rx.sched.relay(pdu, slot, rx.addr) == 0:
+                    rx.relayed += 1
+                return
+
             # Who relays, when several could. Four radios on a hilltop all hear the valley
             # below, all correctly conclude they reach somewhere the sender does not, and
             # all fire in the same slot — measured at 1.5% delivery through the hill.
