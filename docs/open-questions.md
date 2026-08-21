@@ -1549,6 +1549,15 @@ canopy, a deep valley, inside a building — are **local and partial**. In a mes
 easy case: **one node with a fix is enough**, and time propagates from it through the same
 beacons that already carry neighbour state.
 
+> **Answered in design 2026-08-21 by [ADR-0012](decisions/0012-network-time-authoritative.md).**
+> The concern is not the outage, it is that a safety system cannot have a single point of
+> failure in a service nobody involved operates — and spoofing is worse than jamming, because
+> a spoofed radio transmits confidently in the wrong slot. The answer was already in the
+> architecture: Glossy is titled *"Efficient Network Flooding **and Time Synchronization**"*
+> and gets sub-microsecond sync **implicitly, from the flood itself**. ADR-0011 bought that
+> and paid only for the flooding. Network time becomes authoritative, GPS advisory and
+> sanity-checked. The table below still governs the case where a radio hears nobody at all.
+
 So the design is three layers, and only the first exists today:
 
 1. **GPS-disciplined** where a fix is available. Built.
