@@ -30,6 +30,7 @@ yet in any of them.
 | [OQ-0017](#oq-0017) | Concurrent call capacity, clustered vs chained | **Phase 0** | Feature parity with DMR; the 3-vs-4 slot decision | Open |
 | [OQ-0018](#oq-0018) | ~~The header cannot express the previous hop~~ | — | — | **Closed** — field added |
 | [OQ-0019](#oq-0019) | Uniform-environment propagation cannot express a blocked link | **Phase 0** | The confidence attached to OQ-0013 | Open |
+| [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
 
 ---
 
@@ -733,3 +734,64 @@ different route — but the real geometry could be worse and cannot currently be
 Needs a per-link obstruction model: an attenuation term attached to specific pairs
 rather than to the environment as a whole. Until then, treat OQ-0013's answer as a lower
 bound on the problem.
+
+## OQ-0020
+### How large can the network be?
+
+Raised because the earlier answer in this register was wrong and the correction matters.
+
+Twelve leaders is the example scenario in the brief, **not a system limit**. A mesh whose
+capability improves as it grows is the entire premise, so anything that scales with total
+node count is a defect rather than a constraint.
+
+Three limits were reported after the first scaling sweep. Two were sizing choices made for
+the twelve-person example, and one was a defect in the harness:
+
+- **TTL at 15 hops** — a 4-bit field. Two more bits gives 63. A sizing choice.
+- **Neighbour table at 16** — RAM, on a part with 192 KB of it. A sizing choice.
+- **Beacon airtime growing linearly with node count** — reported as fundamental. **It is
+  not.** The harness gave every radio a globally unique beacon slot, so control overhead grew
+  with the size of the whole network. Beacons travel one hop and are never flooded, so their
+  slots are spatially reusable exactly as voice slots are. With a bounded pool reused across
+  the network, collisions fall to a handful **regardless of size** and overhead depends on
+  local density alone.
+
+### What actually bounds it
+
+With those corrected, measured across chains from 12 to 200 radios:
+
+| | |
+|---|---|
+| Loss per hop | **0.04%** — 100% at the talker, 97.7% sixty hops away |
+| Collisions | 6, at every size from 12 to 200 |
+| Neighbour tables | never saturated in a chain |
+| Latency | 15 ms per hop, linear |
+
+**Node count and coverage area are effectively unbounded.** Nothing in the protocol scales
+with the size of the network.
+
+**Local density is bounded, and this is real.** Radios within earshot of one another share
+one 25 kHz channel and must have distinct beacon slots. Above about 60 in a single earshot
+group the pool exhausts and beacons start colliding — 26,152 collisions at 100 co-located
+radios. This is not a mesh limitation; sixty radios in one room share one channel under any
+technology. It needs distributed slot colouring rather than the naive address-derived
+assignment currently in the harness — part of [OQ-0009](#oq-0009).
+
+**Network diameter is bounded by latency, not by the protocol.** At 15 ms per hop the brief's
+own 300 ms conversational criterion is reached at about **20 hops**. Beyond that voice stops
+being a conversation, regardless of how well the mesh performs — and it performs well: 60
+hops still delivered 97.7%, it just took 885 ms.
+
+Twenty hops is a large network. In woodland at 290 m spacing that is ~6 km across; in open
+terrain at 5 km spacing it is over 100 km. The number of radios inside that area is limited
+only by local density.
+
+### Decisions this forces
+
+1. **TTL should be sized to the latency limit, not below it.** 4 bits caps at 15 hops, under
+   the ~20 that latency allows, so it truncates the network before physics does. 6 bits costs
+   two header bits and worsens [OQ-0002](#oq-0002) — a genuine trade, not a free fix.
+2. **Neighbour table and beacon pool must be sized for expected local density**, not for
+   twelve. Both are memory.
+3. **Beacon slot assignment must be distributed and local.** The naive scheme works up to the
+   pool size and then degrades sharply. [OQ-0009](#oq-0009).

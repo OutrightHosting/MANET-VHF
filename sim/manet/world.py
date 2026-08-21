@@ -74,34 +74,41 @@ class Simulation:
     def positions(self):
         return [n.pos for n in self.nodes]
 
+    # Beacon slots are drawn from a small pool and REUSED across the network. Two
+    # radios far enough apart can beacon in the same slot for the same reason two
+    # radios far apart can relay in the same slot: neither can hear the other.
+    #
+    # This is what makes the mesh scale. A globally unique beacon slot per radio makes
+    # control overhead grow linearly with the size of the whole network, which is
+    # nonsense for traffic that never travels more than one hop. With reuse, the cost
+    # depends on how many radios are within earshot of each other — local density — and
+    # not at all on how many exist.
+    BEACON_POOL = 32
+
     def _beacon_slot_for(self, node):
         """
         Which slot in the beacon interval this radio beacons in.
 
-        Two constraints, both learned the hard way in Phase 0.
+        Three constraints, all learned in Phase 0:
 
-        First, the stagger step must not be a multiple of the slots per frame. If it is,
-        every radio's beacon lands on the same phase of the voice cycle and the whole
-        group interferes with the same thing.
+        * the stagger step must not be a multiple of the slots per frame, or every
+          radio's beacon lands on the same phase of the voice cycle;
+        * a radio must not beacon in a phase it needs for voice — the one it transmits
+          in, or the one it must listen in;
+        * slots come from a bounded pool and are reused spatially.
 
-        Second — and this is the one the brief does not anticipate — a radio must not
-        beacon in a slot phase it needs for voice. There are two such phases: the one it
-        transmits voice in, and the one it must listen in to hear its upstream
-        neighbour. Beacon in the first and two of its own transmissions collide in the
-        air; beacon in the second and it goes deaf in exactly the slot that matters.
-
-        This is a channel-access rule and it belongs in the MAC, not in a simulator. It
-        lives here for now because the core has no channel access mechanism at all —
-        see OQ-0009, which this makes concrete.
+        The pool assignment here is deliberately naive: slot from the address. A real
+        implementation needs distributed colouring, where a radio that sees a neighbour
+        using its slot moves. That is part of OQ-0009 and is not designed.
         """
         interval = self.cfg.beacon_interval_slots
         spf = self.cfg.slots_per_frame
-        n = max(len(self.nodes), 1)
+        pool = min(self.BEACON_POOL, interval)
 
-        step = max(interval // n, 1)
+        step = max(interval // pool, 1)
         if step % spf == 0:
             step += 1
-        base = (node.index * step) % interval
+        base = ((node.index % pool) * step) % interval
 
         busy = {p for p in (node.voice_tx_phase, node.voice_rx_phase) if p is not None}
         for shift in range(spf):
