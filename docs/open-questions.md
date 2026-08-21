@@ -19,7 +19,7 @@ yet in any of them.
 | [OQ-0006](#oq-0006) | VHF Mid Band or High Band | Ofcom enquiry | Nothing technical | Open |
 | [OQ-0007](#oq-0007) | Encryption | Phase 3 | BOM, key management UX | Open |
 | [OQ-0008](#oq-0008) | In-house or contracted development | Commercial | Schedule and cost | Open |
-| [OQ-0009](#oq-0009) | Channel access: who owns a slot, across four priority classes | **Phase 0** | The MAC is not fully specified without this | Open |
+| [OQ-0009](#oq-0009) | Channel access — there is no mechanism at all | **Phase 0** | **BLOCKING.** The mesh cannot maintain itself while carrying voice | **Open, blocking** |
 | [OQ-0010](#oq-0010) | RX→TX turnaround budget on a half-duplex transceiver | Phase 1 | Guard interval, therefore payload, therefore OQ-0002 | Open |
 | [OQ-0011](#oq-0011) | ~~Is full OLSR topology-control dissemination needed at all?~~ | — | — | **Closed** — TC stays |
 | [OQ-0012](#oq-0012) | Header field widths and total header size | **Phase 0** | ~~OQ-0002~~; the header format is forever | Open — no longer blocks OQ-0002 |
@@ -307,6 +307,58 @@ data is best-effort and rate-limited — without a mechanism to implement it. Sp
 Conventional simplex resolves the PTT half socially — you hear that someone is talking and you wait.
 That may well be the right answer, and it fits requirement 8. But it needs to be a decision with a
 mechanism behind it, and it does not resolve the priority half at all.
+
+### Phase 0 findings — 2026-08-21. This is now the blocking gap, not an open parameter.
+
+**There is no channel access mechanism at all, and the design does not work without one.**
+Slots are not assigned to anybody. Every radio transmits whenever its own scheduler says so,
+and nothing prevents two radios keying up in the same slot. The priority rules in
+[Addendum 01 §5](addendum-01-packet-architecture.md#5-priority-and-queueing) arbitrate
+*within* one radio's scheduler and say nothing about arbitration *between* radios.
+
+Voice alone is fine: a static 8-node chain delivers 99.8% with zero collisions. Beacons alone
+are fine. Together they destroy each other, and the failure is not graceful.
+
+**Clustered, twelve leaders in direct range.** Beacons and voice collide in the air because
+there is no spatial reuse to separate them — everyone hears everyone. Three of twelve radios
+had their beacon land on the voice slot phase *every interval*, so they were never heard,
+neighbour tables stayed incomplete, phantom two-hop neighbours appeared, and relays were
+selected in a group where nothing should relay at all.
+
+Mitigated by a rule this register did not previously contain: **a radio must not beacon in a
+slot phase it needs for voice** — neither the phase it transmits in nor the phase it must
+listen in. With that, the cluster case passes: zero relays selected, zero relay
+transmissions, delivery above 99%.
+
+**Dispersed and moving, the mitigation is not enough.** As the group stretches to 3 km the
+voice stream pipelines through *every* slot phase somewhere along the chain, so there is no
+free phase to retreat to. Beacon reception per transmission falls from 11 neighbours to 1.0,
+collisions run into the hundreds per 20 s, and the relay gate — a node's knowledge that its
+upstream neighbour has selected it — is open on **0 to 4 of 11 hops** at any moment. The
+control plane starves, the relay chain never forms, and end-to-end delivery becomes erratic
+between 4% and 100% with no relationship to how far apart people are.
+
+Topology *converges* throughout (100% of samples) and every node remains reachable. The
+routing is not wrong. It simply cannot get its own control traffic delivered.
+
+### What a mechanism has to provide
+
+1. Beacons must reach neighbours reliably while voice is flowing, since the relay chain
+   depends on them and re-forms constantly under mobility.
+2. It must be deterministic. A statistical scheme that mostly works produces exactly the
+   erratic 4–100% behaviour above, which in the field reads as unexplained patchy coverage.
+3. It must not break the pipelining rule ([ADR-0002](decisions/0002-tdma-slot-pipelining.md)),
+   which requires the very next slot after reception.
+
+The obvious candidate is a set of slots reserved for control and never used by voice, assigned
+per node. Sizing falls out of [OQ-0004](#oq-0004): twelve radios beaconing every two seconds
+need twelve slots in every 132, which is the 9% airtime already costed. The difficulty is
+requirement 3 — a reserved slot in the middle of a relay chain stalls the hop that needed it —
+and that interaction is undesigned.
+
+**This is now the largest open item in the project, ahead of the slot budget.** The budget
+decides whether a frame can carry voice; this decides whether the mesh can maintain itself
+while carrying it.
 
 ## OQ-0010
 ### RX→TX turnaround budget on a half-duplex transceiver

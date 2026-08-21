@@ -11,6 +11,7 @@ from .core import (
     BEACON, VOICE, PRIO_SIGNALLING, PRIO_VOICE, BROADCAST, CONFIG,
     Dedup, MprSet, NeighbourTable, Pdu, Scheduler,
 )
+from .mobility import Static
 from .radio import Channel
 
 
@@ -28,6 +29,11 @@ class Node:
         self.seq = 0
         self.beacon_entries = []
 
+        # Slot phases this radio needs for voice: the one it transmits in, and the one
+        # it must listen in. It may not beacon in either.
+        self.voice_tx_phase = None
+        self.voice_rx_phase = None
+
         # metrics
         self.heard_payloads = {}   # (src, seq) -> slot first decoded
         self.relayed = 0
@@ -40,7 +46,12 @@ class Simulation:
     def __init__(self, positions, env, budget=None, talker=0):
         self.cfg = CONFIG
         self.channel = Channel(env, budget)
-        self.nodes = [Node(i, i + 1, p) for i, p in enumerate(positions)]
+        # `positions` may be a fixed list or a Mobility. Nodes carry a current position
+        # that is refreshed once per frame — at walking pace a frame is 7 cm, so there is
+        # nothing to gain from updating per slot.
+        self.mobility = positions if hasattr(positions, "positions_at") else Static(positions)
+        start = self.mobility.positions_at(0)
+        self.nodes = [Node(i, i + 1, p) for i, p in enumerate(start)]
         self.talker = talker
         self.slot = 0
         self.tx_log = []
@@ -67,23 +78,37 @@ class Simulation:
         """
         Which slot in the beacon interval this radio beacons in.
 
-        The naive stagger — interval/n_nodes apart — is a trap. A relay must LISTEN in
-        the slot its upstream neighbour transmits in, and a half-duplex radio keying up
-        to beacon in that slot is deaf. If the stagger step happens to be a multiple of
-        the slots-per-frame, every node's beacon lands on the same phase of the voice
-        cycle and every relay goes deaf in exactly the slot that matters.
+        Two constraints, both learned the hard way in Phase 0.
 
-        So the offset is stepped by a value coprime with the frame length, spreading
-        beacons across slot phases instead of aligning them. See OQ-0004: where control
-        traffic sits in the slot structure is unspecified in the brief, and this is why
-        it cannot stay that way.
+        First, the stagger step must not be a multiple of the slots per frame. If it is,
+        every radio's beacon lands on the same phase of the voice cycle and the whole
+        group interferes with the same thing.
+
+        Second — and this is the one the brief does not anticipate — a radio must not
+        beacon in a slot phase it needs for voice. There are two such phases: the one it
+        transmits voice in, and the one it must listen in to hear its upstream
+        neighbour. Beacon in the first and two of its own transmissions collide in the
+        air; beacon in the second and it goes deaf in exactly the slot that matters.
+
+        This is a channel-access rule and it belongs in the MAC, not in a simulator. It
+        lives here for now because the core has no channel access mechanism at all —
+        see OQ-0009, which this makes concrete.
         """
         interval = self.cfg.beacon_interval_slots
+        spf = self.cfg.slots_per_frame
         n = max(len(self.nodes), 1)
+
         step = max(interval // n, 1)
-        if step % self.cfg.slots_per_frame == 0:
-            step += 1  # break the alignment with the voice cycle
-        return (node.index * step) % interval
+        if step % spf == 0:
+            step += 1
+        base = (node.index * step) % interval
+
+        busy = {p for p in (node.voice_tx_phase, node.voice_rx_phase) if p is not None}
+        for shift in range(spf):
+            candidate = (base + shift) % interval
+            if candidate % spf not in busy:
+                return candidate
+        return base
 
     # -------------------------------------------------------------------- phases --
 
@@ -118,9 +143,12 @@ class Simulation:
 
     def _collect(self, slot):
         out = []
+        _ = slot
         for n in self.nodes:
             pdu = n.sched.take(slot)
             if pdu is not None:
+                if pdu.type in (VOICE,):
+                    n.voice_tx_phase = slot % self.cfg.slots_per_frame
                 out.append((n.index, (pdu, n.beacon_entries if pdu.type == BEACON else None)))
         return out
 
@@ -159,6 +187,8 @@ class Simulation:
                 rx.nb.advert(pdu.prev, entries, slot)
             return
 
+        rx.voice_rx_phase = slot % self.cfg.slots_per_frame
+
         if not rx.dedup.check(pdu.src, pdu.seq, slot):
             # An echo. Someone else already relayed it, so ours is redundant —
             # passive acknowledgement.
@@ -187,6 +217,13 @@ class Simulation:
                 break
         return None if best is None else (src, seq, best)
 
+    def _move(self, slot):
+        if slot % self.cfg.slots_per_frame:
+            return
+        pos = self.mobility.positions_at(slot * self.cfg.slot_us)
+        for n, p in zip(self.nodes, pos):
+            n.pos = p
+
     def _housekeep(self, slot):
         if slot % self.cfg.slots_per_frame:
             return
@@ -206,6 +243,7 @@ class Simulation:
         for _ in range(slots):
             slot = self.slot
             active = (voice_from is not None and voice_from <= slot < voice_to)
+            self._move(slot)
             self._schedule_beacons(slot)
             self._schedule_voice(slot, active)
             txs = self._collect(slot)
@@ -225,6 +263,25 @@ class Simulation:
             if not n.mpr.covers_all(n.nb):
                 return False
         return True
+
+    def relaying_now(self):
+        """Total relays currently selected across the group. Zero means nothing relays."""
+        return sum(len(n.mpr.select(n.nb)) for n in self.nodes)
+
+    def reachable_from(self, index):
+        """How many nodes are reachable from `index` through symmetric links."""
+        seen = {self.nodes[index].addr}
+        frontier = [self.nodes[index]]
+        by_addr = {n.addr: n for n in self.nodes}
+        while frontier:
+            nxt = []
+            for n in frontier:
+                for a in n.nb.symmetric():
+                    if a not in seen and a in by_addr:
+                        seen.add(a)
+                        nxt.append(by_addr[a])
+            frontier = nxt
+        return len(seen)
 
     def relay_total(self):
         return sum(n.relayed for n in self.nodes)
