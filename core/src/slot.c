@@ -97,6 +97,7 @@ static manet_status_t place(manet_sched_t *s, const manet_pdu_t *pdu, uint64_t s
     e->occupied    = true;
     e->slot_number = slot;
     e->pdu         = *pdu;
+    e->heard_count = 0u;
     return MANET_OK;
 }
 
@@ -182,6 +183,65 @@ bool manet_sched_take(manet_sched_t *s, uint64_t slot, manet_pdu_t *out)
         }
     }
     return found;
+}
+
+static manet_sched_entry_t *find_frame(manet_sched_t *s, manet_addr_t src, uint8_t seq)
+{
+    size_t i;
+    for (i = 0u; i < (size_t)MANET_SCHED_DEPTH; i++) {
+        if (s->entries[i].occupied && s->entries[i].pdu.hdr.src == src &&
+            s->entries[i].pdu.hdr.seq == seq) {
+            return &s->entries[i];
+        }
+    }
+    return NULL;
+}
+
+size_t manet_sched_note_relay(manet_sched_t *s, manet_addr_t src, uint8_t seq,
+                              manet_addr_t from)
+{
+    manet_sched_entry_t *e;
+    uint8_t              i;
+
+    if (s == NULL) {
+        return 0u;
+    }
+    e = find_frame(s, src, seq);
+    if (e == NULL) {
+        return 0u;
+    }
+    for (i = 0u; i < e->heard_count; i++) {
+        if (e->heard[i] == from) {
+            return (size_t)e->heard_count;   /* already counted */
+        }
+    }
+    if (e->heard_count < (uint8_t)MANET_HEARD_MAX) {
+        e->heard[e->heard_count] = from;
+        e->heard_count++;
+    }
+    return (size_t)e->heard_count;
+}
+
+size_t manet_sched_heard(const manet_sched_t *s, manet_addr_t src, uint8_t seq,
+                         manet_addr_t *out, size_t cap)
+{
+    size_t i;
+    uint8_t j;
+
+    if (s == NULL) {
+        return 0u;
+    }
+    for (i = 0u; i < (size_t)MANET_SCHED_DEPTH; i++) {
+        const manet_sched_entry_t *e = &s->entries[i];
+        if (!e->occupied || e->pdu.hdr.src != src || e->pdu.hdr.seq != seq) {
+            continue;
+        }
+        for (j = 0u; j < e->heard_count && (size_t)j < cap; j++) {
+            out[j] = e->heard[j];
+        }
+        return (size_t)e->heard_count;
+    }
+    return 0u;
 }
 
 bool manet_sched_suppress(manet_sched_t *s, manet_addr_t src, uint8_t seq)

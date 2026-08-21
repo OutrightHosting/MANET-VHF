@@ -89,19 +89,21 @@
 #endif
 
 /*
- * 5 bits, 31 hops. Sized so TTL is never what stops the network.
+ * 4 bits, 15 hops.
  *
- * 4 bits caps at 15 hops, and an earlier note here argued that was fine because voice
- * stops being conversational around there anyway. That reasoning was wrong: latency
- * degrades gradually, and at the far end of a long chain the alternative to a slow
- * conversation is no contact at all. Extending reach is the entire point of a mesh, so
- * the loop-prevention counter must not be the thing that truncates it.
+ * This has been argued both ways in this project and the literature settles it. An
+ * earlier note here set 5 bits so "TTL is never what stops the network", on the reasoning
+ * that latency degrades gradually and slow contact beats none. True as far as it goes,
+ * but it was measured against the wrong budget: 300 ms is the MOUTH-TO-EAR figure from
+ * 3GPP TS 22.179, not a propagation allowance, and our chain gives H <= 8 within it.
  *
- * Not larger, though: a looping frame at 63 hops wastes nearly a second of airtime
- * before it dies, and every bit here is a bit of FEC (OQ-0002).
+ * So 15 hops covers the voice bound with headroom, data can use the whole field, and the
+ * bit goes back to FEC where OQ-0002 needs it far more. A shorter TTL also contains a
+ * looping frame faster — at 15 hops a loop wastes 225 ms of airtime, at 63 nearly a
+ * second.
  */
 #ifndef MANET_TTL_BITS
-#define MANET_TTL_BITS 5u
+#define MANET_TTL_BITS 4u
 #endif
 
 #ifndef MANET_PRIO_BITS
@@ -256,6 +258,27 @@
 
 #define MANET_SUPERFRAME_SLOTS \
     ((uint64_t)MANET_SUPERFRAME_FRAMES * (uint64_t)MANET_SLOTS_PER_FRAME)
+
+/* How many distinct relayers of one frame a radio remembers while deciding whether its
+ * own relay is still needed. See manet_mpr_still_needed(). */
+#ifndef MANET_HEARD_MAX
+#define MANET_HEARD_MAX 6u
+#endif
+
+/*
+ * TTL a radio stamps on voice it originates.
+ *
+ * Bounded by LATENCY, not by the field width. 3GPP TS 22.179 R-6.15.3.2-015 sets 300 ms
+ * mouth-to-ear for 95% of voice bursts; our chain costs roughly 60 ms packetisation +
+ * ~30 ms mean slot wait + 15 ms per hop + ~60 ms de-jitter + ~30 ms codec, so 180 + 15H
+ * gives H <= 8. A voice frame that outlives that is occupying the network to deliver audio
+ * nobody can hold a conversation over.
+ *
+ * Data is not latency-bound and may use the full field.
+ */
+#ifndef MANET_VOICE_TTL
+#define MANET_VOICE_TTL 8u
+#endif
 
 /* Largest PDU that can ride in one slot: everything on air except the sync word.
  * Header and FEC are carried inside this. */

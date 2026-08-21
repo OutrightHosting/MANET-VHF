@@ -68,4 +68,21 @@ bool manet_mpr_should_relay(const manet_nb_table_t *t, manet_addr_t from);
  * pass, and worth asserting in tests: a set that fails this is a coverage hole. */
 bool manet_mpr_covers_all(const manet_nb_table_t *t, const manet_mpr_set_t *s);
 
+/*
+ * Is this radio's queued relay still worth sending, given every radio already heard
+ * relaying the same frame?
+ *
+ * True if this radio reaches at least one two-way neighbour that NONE of `heard` reach.
+ * This is the Scalable Broadcast Algorithm's rule (Peng & Lu, 2000): recompute the
+ * uncovered neighbour set against the union of all transmitters, and stay quiet only when
+ * it is empty.
+ *
+ * The alternative — cancelling as soon as any one duplicate arrives — is a counter-based
+ * scheme with C=1, which Ni et al. (MobiCom'99) show cannot guarantee every node is
+ * reached. Two radios can both hear a relay that covers neither's far side, and both then
+ * fall silent, and the frame stops.
+ */
+bool manet_mpr_still_needed(const manet_nb_table_t *t,
+                            const manet_addr_t *heard, size_t n);
+
 #endif /* MANET_MPR_H */

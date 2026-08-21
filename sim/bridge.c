@@ -43,6 +43,8 @@ EXPORT long mb_cfg(int which)
     case 15: return (long)MANET_TTL_MAX;
     case 16: return (long)MANET_VOICE_PAYLOAD_BITS;
     case 17: return (long)MANET_SYNC_BITS;
+    case 18: return (long)MANET_VOICE_TTL;
+    case 19: return (long)MANET_HEARD_MAX;
     default: return -1;
     }
 }
@@ -118,6 +120,32 @@ EXPORT int mb_sched_relay(void *s, const void *pdu, unsigned long long rx_slot,
 EXPORT int mb_sched_take(void *s, unsigned long long slot, void *out)
 {
     return manet_sched_take((manet_sched_t *)s, (uint64_t)slot, (manet_pdu_t *)out) ? 1 : 0;
+}
+
+EXPORT unsigned long mb_sched_note_relay(void *s, unsigned src, unsigned seq, unsigned from)
+{
+    return (unsigned long)manet_sched_note_relay((manet_sched_t *)s, (manet_addr_t)src,
+                                                 (uint8_t)seq, (manet_addr_t)from);
+}
+
+EXPORT int mb_mpr_still_needed(const void *t, const unsigned char *heard, unsigned long n)
+{
+    manet_addr_t buf[MANET_HEARD_MAX];
+    unsigned long i;
+    if (n > (unsigned long)MANET_HEARD_MAX) { n = (unsigned long)MANET_HEARD_MAX; }
+    for (i = 0ul; i < n; i++) { buf[i] = (manet_addr_t)heard[i]; }
+    return manet_mpr_still_needed((const manet_nb_table_t *)t, buf, (size_t)n) ? 1 : 0;
+}
+
+EXPORT unsigned long mb_sched_heard(const void *s, unsigned src, unsigned seq,
+                                    unsigned char *out, unsigned long cap)
+{
+    manet_addr_t buf[MANET_HEARD_MAX];
+    size_t n = manet_sched_heard((const manet_sched_t *)s, (manet_addr_t)src,
+                                 (uint8_t)seq, buf, (size_t)MANET_HEARD_MAX);
+    unsigned long i;
+    for (i = 0ul; i < (unsigned long)n && i < cap; i++) { out[i] = (unsigned char)buf[i]; }
+    return (unsigned long)n;
 }
 
 EXPORT int mb_sched_suppress(void *s, unsigned src, unsigned seq)

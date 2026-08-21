@@ -47,6 +47,9 @@ _SIGS = {
     "mb_sched_relay": (ctypes.c_int, [_P, _P, _ULL, _U]),
     "mb_sched_take": (ctypes.c_int, [_P, _ULL, _P]),
     "mb_sched_suppress": (ctypes.c_int, [_P, _U, _U]),
+    "mb_sched_note_relay": (_UL, [_P, _U, _U, _U]),
+    "mb_sched_heard": (_UL, [_P, _U, _U, _U8P, _UL]),
+    "mb_mpr_still_needed": (ctypes.c_int, [_P, _U8P, _UL]),
     "mb_sched_depth": (_UL, [_P]),
     "mb_slot_start_us": (_ULL, [_ULL]),
     "mb_slot_is_control": (ctypes.c_int, [_ULL]),
@@ -86,6 +89,7 @@ _CFG_NAMES = [
     "gross_bitrate", "onair_bits", "header_bits", "max_pdu_bits", "fec_bits",
     "fec_percent", "beacon_bits", "beacon_interval_frames", "nb_hold_slots",
     "max_neighbours", "ttl_max", "voice_bits", "sync_bits",
+    "voice_ttl", "heard_max",
 ]
 
 
@@ -199,6 +203,15 @@ class Scheduler:
     def suppress(self, src, seq):
         return bool(_lib.mb_sched_suppress(self.buf, src, seq))
 
+    def note_relay(self, src, seq, frm):
+        """Record that `frm` relayed this frame. Does NOT cancel anything."""
+        return int(_lib.mb_sched_note_relay(self.buf, src, seq, frm))
+
+    def heard(self, src, seq):
+        out = _u8(CONFIG.heard_max)
+        n = int(_lib.mb_sched_heard(self.buf, src, seq, out, CONFIG.heard_max))
+        return [out[i] for i in range(min(n, CONFIG.heard_max))]
+
     @property
     def depth(self):
         return int(_lib.mb_sched_depth(self.buf))
@@ -233,6 +246,13 @@ class NeighbourTable:
     def should_relay_for(self, frm):
         """Legacy gate: did `frm` explicitly name us as a relay? Needs a fresh beacon."""
         return bool(_lib.mb_nb_should_relay_for(self.buf, frm))
+
+    def still_needed(self, heard):
+        """Do we still reach anyone none of `heard` reach?"""
+        buf = _u8(len(heard))
+        for i, a in enumerate(heard):
+            buf[i] = a
+        return bool(_lib.mb_mpr_still_needed(self.buf, buf, len(heard)))
 
     def should_relay(self, frm):
         """Do we reach anyone `frm` does not? Decided from local knowledge alone."""

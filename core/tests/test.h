@@ -38,5 +38,7 @@ void test_slot_all(void);
 void test_mesh_all(void);
 void test_dedup_all(void);
 void test_nama_all(void);
+void test_suppression_is_coverage_based(void);
+void test_sched_remembers_relayers(void);
 
 #endif /* MANET_TEST_H */

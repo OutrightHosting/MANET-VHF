@@ -293,3 +293,44 @@ bool manet_mpr_should_relay(const manet_nb_table_t *t, manet_addr_t from)
     }
     return false;
 }
+
+bool manet_mpr_still_needed(const manet_nb_table_t *t,
+                            const manet_addr_t *heard, size_t n)
+{
+    manet_addr_t mine[MANET_MAX_NEIGHBOURS];
+    size_t       count;
+    size_t       i;
+    size_t       j;
+
+    if (t == NULL) {
+        return false;
+    }
+    if (heard == NULL || n == 0u) {
+        return true;   /* nobody has relayed it yet */
+    }
+
+    count = manet_nb_symmetric(t, mine, (size_t)MANET_MAX_NEIGHBOURS);
+    if (count > (size_t)MANET_MAX_NEIGHBOURS) {
+        count = (size_t)MANET_MAX_NEIGHBOURS;
+    }
+
+    for (i = 0u; i < count; i++) {
+        bool covered = false;
+
+        for (j = 0u; j < n; j++) {
+            if (mine[i] == heard[j]) {
+                covered = true;    /* the relayer itself */
+                break;
+            }
+            if (manet_nb_reaches(t, heard[j], mine[i])) {
+                covered = true;
+                break;
+            }
+        }
+        if (!covered) {
+            /* Somebody we can reach that no relayer so far can. Still worth sending. */
+            return true;
+        }
+    }
+    return false;
+}

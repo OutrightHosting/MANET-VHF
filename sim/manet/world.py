@@ -196,8 +196,9 @@ class Simulation:
         # One Codec2 payload per frame, beginning at this radio's own phase.
         if slot % self.cfg.slots_per_frame != self.voice_phase(n):
             return
+        # Voice TTL is bounded by the mouth-to-ear budget, not by the field width.
         pdu = Pdu(src=n.addr, prev=n.addr, dst=0xC0, type=VOICE,
-                  seq=n.seq & 0xFF, prio=PRIO_VOICE)
+                  seq=n.seq & 0xFF, prio=PRIO_VOICE, ttl=self.cfg.voice_ttl)
         n.seq = (n.seq + 1) & 0xFF
         if n.sched.originate(pdu, slot) == 0:
             n.originated += 1
@@ -258,9 +259,18 @@ class Simulation:
         rx.last_voice_slot = slot
 
         if not rx.dedup.check(pdu.src, pdu.seq, slot):
-            # An echo. Someone else already relayed it, so ours is redundant —
-            # passive acknowledgement.
-            rx.sched.suppress(pdu.src, pdu.seq)
+            # An echo — somebody relayed it. That is not on its own a reason to stay
+            # quiet. Record who, then ask whether our own transmission would still reach
+            # anyone none of them reach; cancel only if it would not.
+            #
+            # Cancelling on the first duplicate is a counter-based scheme at C=1, which
+            # cannot guarantee every radio is reached (Ni et al., MobiCom'99). Two radios
+            # can both hear a relay that covers neither's far side, both fall silent, and
+            # the frame stops with nothing to indicate it.
+            rx.sched.note_relay(pdu.src, pdu.seq, pdu.prev)
+            heard = rx.sched.heard(pdu.src, pdu.seq)
+            if heard and not rx.nb.still_needed(heard):
+                rx.sched.suppress(pdu.src, pdu.seq)
             return
 
         pid = self._payload_id(pdu.src, pdu.seq, slot)

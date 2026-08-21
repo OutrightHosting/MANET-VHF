@@ -17,6 +17,8 @@ int main(void)
     test_slot_all();
     printf("neighbour + mpr\n");
     test_mesh_all();
+    test_suppression_is_coverage_based();
+    test_sched_remembers_relayers();
     printf("dedup\n");
     test_dedup_all();
     printf("nama\n");

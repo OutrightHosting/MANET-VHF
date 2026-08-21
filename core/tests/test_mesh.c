@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "manet/mpr.h"
+#include "manet/slot.h"
 #include "manet/neighbour.h"
 #include "test.h"
 
@@ -422,4 +423,85 @@ void test_mesh_all(void)
     test_relay_gate();
     test_beacon_contents();
     test_table_is_finite();
+}
+
+/* ---------------------------------------------- coverage-based suppression -- */
+
+/*
+ * The failure the old rule allowed. Two radios each queue a relay; both hear a third
+ * relay the same frame; under "cancel on any duplicate" both fall silent — and if that
+ * third radio reaches neither of their far sides, the frame stops there and everyone
+ * beyond is lost, with no error anywhere.
+ */
+void test_suppression_is_coverage_based(void)
+{
+    bool             adj[MAXN][MAXN];
+    manet_nb_table_t t;
+    manet_addr_t     heard[4];
+
+    /* self(0) -- A(1), self -- B(2); A -- X(3); B -- Y(4). A and B each reach somewhere
+     * the other does not. */
+    clear_adj(adj);
+    link_pair(adj, 0u, 1u);
+    link_pair(adj, 0u, 2u);
+    link_pair(adj, 1u, 3u);
+    link_pair(adj, 2u, 4u);
+    build(&t, 0u, 5u, adj, 100u, false);
+
+    /* Nobody has relayed: obviously still needed. */
+    CHECK(manet_mpr_still_needed(&t, NULL, 0u));
+
+    /* A relayed. A reaches itself and X, but not B — so we still carry it to B. */
+    heard[0] = A(1u);
+    CHECK(manet_mpr_still_needed(&t, heard, 1u));
+
+    /* A and B have both relayed. Between them they cover everything we reach, so our
+     * transmission would add nothing. */
+    heard[1] = A(2u);
+    CHECK(!manet_mpr_still_needed(&t, heard, 2u));
+
+    /* A radio that reaches nothing of ours does not cover us. Under the old
+     * cancel-on-first-duplicate rule, hearing this alone would have silenced us. */
+    {
+        manet_addr_t stranger[1];
+        stranger[0] = A(9u);
+        CHECK(manet_mpr_still_needed(&t, stranger, 1u));
+    }
+}
+
+/* The scheduler must remember WHO relayed, not merely how many did. */
+void test_sched_remembers_relayers(void)
+{
+    manet_sched_t s;
+    manet_pdu_t   pdu;
+    manet_addr_t  out[MANET_HEARD_MAX];
+    size_t        n;
+
+    memset(&pdu, 0, sizeof pdu);
+    pdu.hdr.src = A(4u);
+    pdu.hdr.prev = A(4u);
+    pdu.hdr.dst = 0xC0u;
+    pdu.hdr.seq = 0x33u;
+    pdu.hdr.ttl = 8u;
+    pdu.hdr.prio = MANET_PRIO_VOICE;
+
+    manet_sched_init(&s);
+    CHECK_EQ(manet_sched_originate(&s, &pdu, 40u), MANET_OK);
+
+    CHECK_EQ(manet_sched_note_relay(&s, A(4u), 0x33u, A(7u)), 1);
+    CHECK_EQ(manet_sched_note_relay(&s, A(4u), 0x33u, A(8u)), 2);
+    /* the same relayer twice is still one relayer */
+    CHECK_EQ(manet_sched_note_relay(&s, A(4u), 0x33u, A(7u)), 2);
+    /* a frame we do not hold records nothing */
+    CHECK_EQ(manet_sched_note_relay(&s, A(4u), 0x99u, A(7u)), 0);
+
+    n = manet_sched_heard(&s, A(4u), 0x33u, out, MANET_HEARD_MAX);
+    CHECK_EQ(n, 2);
+    CHECK(out[0] == A(7u) || out[1] == A(7u));
+    CHECK(out[0] == A(8u) || out[1] == A(8u));
+
+    /* Still queued — noting relayers does not cancel anything by itself. */
+    CHECK_EQ(manet_sched_depth(&s), 1);
+    CHECK(manet_sched_suppress(&s, A(4u), 0x33u));
+    CHECK_EQ(manet_sched_depth(&s), 0);
 }

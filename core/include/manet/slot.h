@@ -103,9 +103,15 @@ typedef struct {
 /* --------------------------------------------------------------- scheduler -- */
 
 typedef struct {
-    bool        occupied;
-    uint64_t    slot_number;
-    manet_pdu_t pdu;
+    bool         occupied;
+    uint64_t     slot_number;
+    manet_pdu_t  pdu;
+    /* Which radios have been heard relaying this frame. Cancelling on the FIRST of them
+     * is Ni et al.'s counter-based scheme at C=1 — the most aggressive setting of a family
+     * MobiCom'99 shows cannot guarantee reachability. Keeping the set lets the decision be
+     * made on coverage instead. */
+    manet_addr_t heard[MANET_HEARD_MAX];
+    uint8_t      heard_count;
 } manet_sched_entry_t;
 
 typedef struct {
@@ -146,11 +152,28 @@ manet_status_t manet_sched_originate(manet_sched_t *s, const manet_pdu_t *pdu, u
 bool manet_sched_take(manet_sched_t *s, uint64_t slot, manet_pdu_t *out);
 
 /*
- * Passive acknowledgement: this radio overheard someone else relay the same frame, so
- * its own queued relay is redundant and must be dropped. Matching is on origin and
- * sequence, which is what the header carries for exactly this purpose.
+ * Passive acknowledgement, first half: record that `from` was heard relaying this frame.
  *
- * Returns true if something was actually suppressed.
+ * Recording is NOT cancelling. Whether this radio's own relay is still needed is a
+ * coverage question — see manet_mpr_still_needed() — and answering it requires knowing
+ * every radio heard so far, not just the most recent. Cancelling on the first duplicate
+ * is Ni et al.'s counter-based scheme with C=1, which MobiCom'99 shows cannot guarantee
+ * that every node is reached. On a voice network that failure is a radio going silent
+ * with no error indication.
+ *
+ * Returns the number of distinct relayers now recorded, or 0 if the frame is not queued.
+ */
+size_t manet_sched_note_relay(manet_sched_t *s, manet_addr_t src, uint8_t seq,
+                              manet_addr_t from);
+
+/* Read back who has been heard relaying a queued frame. */
+size_t manet_sched_heard(const manet_sched_t *s, manet_addr_t src, uint8_t seq,
+                         manet_addr_t *out, size_t cap);
+
+/*
+ * Passive acknowledgement, second half: drop this radio's queued relay of a frame.
+ *
+ * Call only once coverage says it adds nothing. Returns true if something was dropped.
  */
 bool manet_sched_suppress(manet_sched_t *s, manet_addr_t src, uint8_t seq);
 
