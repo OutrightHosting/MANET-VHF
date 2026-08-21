@@ -24,7 +24,7 @@ TEST_OBJ := $(patsubst core/tests/%.c,$(BUILD)/tests/%.o,$(TEST_SRC))
 
 ARM_CC   := arm-none-eabi-gcc
 
-.PHONY: all test test-3slot budget freestanding arm arm-build arm-check arm-size clean
+.PHONY: all test test-3slot budget freestanding arm arm-build arm-check arm-size trace clean
 
 all: test
 
@@ -144,3 +144,14 @@ arm-size: $(ARM_OBJ)
 
 clean:
 	rm -rf $(BUILD)
+
+# ------------------------------------------------------------------- trace --
+
+# Drive the real scheduler over an idealised chain and emit what happened, as JSON.
+# Shows the pipelining rule working and makes spatial reuse (OQ-0013) visible.
+trace: $(BUILD)/trace
+	@$(BUILD)/trace
+
+$(BUILD)/trace: tools/trace.c $(CORE_OBJ)
+	@mkdir -p $(@D)
+	$(CC) $(CSTD) $(WARN) $(INC) $(FREE) $(EXTRA_CFLAGS) -o $@ tools/trace.c $(CORE_OBJ)
