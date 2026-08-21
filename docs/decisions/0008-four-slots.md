@@ -28,6 +28,14 @@ constraints, and it is pinned from both sides at once.
 | 5 | 211 | −47 | 19.3 dB | voice does not fit |
 | 6 | 176 | −82 | 22.4 dB | voice does not fit |
 
+> **Numbers corrected 2026-08-21 after adversarial audit.** The delivery figures originally
+> cited here (99.8%, zero collisions) were an artifact of a beacon-scheduling defect that
+> kept the control plane off the air; see [OQ-0013](../open-questions.md#oq-0013). The
+> decision is unaffected — voice-against-voice reuse at four slots is confirmed collision-free
+> with beacons silenced, and three slots fails on reuse alone — but the supporting evidence is
+> weaker than stated and the reuse margin rests on an uncited 10 dB capture threshold that,
+> below 9.1 dB, reverses the result entirely.
+
 **Spatial reuse requires at least four.** The originator transmits every frame, so with N
 slots the radio N hops down the chain transmits in the same slot at the same instant. A
 relay listening to its neighbour one hop away therefore hears that reuser N−1 hops away,

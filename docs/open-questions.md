@@ -511,20 +511,38 @@ trusting a hop count.
 ### Answered — 2026-08-21. Three slots is not safe.
 
 Measured in the harness, 8-node chain, spacing at 90% of usable range, voice from one end.
-**Figures below are the corrected ones** — the first run of this experiment was contaminated
-by two harness defects, both since fixed and described in [OQ-0004](#oq-0004). The finding
-survived correction and the signal is now far cleaner:
+
+**These figures replace an earlier table that could not be reproduced.** The superseded
+numbers (99.8% and zero collisions at four slots, in both environments) came from a
+2400-slot run under a beacon-scheduling rule that has since been fixed. Under that rule
+each radio's beacon landed on its own relay phase and was dropped on priority by
+`place()` in `core/src/slot.c`, so only a handful of beacons ever reached the air. **The
+zero-collision result was bought by taking the control plane off the air.** Found by
+adversarial audit, confirmed by re-running at HEAD. `make reuse` regenerates the table
+below, so it cannot drift again.
 
 | | C/I margin | Collisions | End-to-end delivery |
 |---|---|---|---|
-| **4 slots**, dense woodland | 48.5 dB | **0** | **99.8%** |
-| **4 slots**, open moorland | 15.3 dB | **0** | **99.8%** |
-| **3 slots**, dense woodland | 27.9 dB | 0 | 99.6% |
-| **3 slots**, open moorland | **9.6 dB** | **640** | **48.5%** |
+| **4 slots**, dense woodland | 48.5 dB | 6 | 99.5% |
+| **4 slots**, open moorland | 15.3 dB | 81 | **78.5%** |
+| **3 slots**, dense woodland | 27.9 dB | 48 | 84.2% |
+| **3 slots**, open moorland | **9.6 dB** | 314 | **36.5%** |
 
-Four slots is now perfect in both environments, with not a single collision. Three slots is
-perfect in woodland and halves at the first relay hop in open terrain, then stays flat —
-the signature of a capture margin that fails on roughly half of attempts.
+Silencing beacons for the voice window separates the two effects completely:
+
+| | Collisions | Delivery |
+|---|---|---|
+| 4 slots, woodland, beacons silenced | **0** | 99.4% |
+| 4 slots, open moorland, beacons silenced | **0** | 99.4% |
+
+**So voice-against-voice spatial reuse at four slots is genuinely safe — zero collisions,
+at every chain length tested.** Every collision in the four-slot rows above involves a
+beacon. The 78.5% is not a reuse failure; it is [OQ-0009](#oq-0009), the absence of any
+channel access mechanism to keep beacons and voice apart, showing up in the static chain
+exactly as it does under mobility.
+
+Three slots still fails on reuse alone, and worse: with beacons silenced it remains at
+roughly half delivery in open moorland, because the failure there is voice against voice.
 
 The chain collapses from the second hop onward in open terrain at three slots, and the
 arithmetic says exactly why. A receiver at hop *k+1* hears its neighbour one spacing
@@ -535,6 +553,13 @@ a path-loss exponent of 3.2 that is a ratio of:
   4FSK demodulator needs to hold the wanted signal.
 - **N=3** → 2 spacings → 10 × 3.2 × log₁₀(2) = **9.6 dB**, under it. Both signals are
   lost, every time, everywhere along the chain.
+
+Two corrections to the mechanism, both from the audit and both making the claim harsher.
+The margin is **9.41 dB, not 9.63** — `reuse._margin` counts only the nearest interferer,
+while a receiver with three radios in the air sums all of them. And "a capture margin that
+fails on roughly half of attempts" is wrong: the model has no stochastic component at all.
+Capture fails on **100%** of slots where the interferer is up, and the chain settles into a
+period-2 half-empty limit cycle. The ~50% figure is right; that explanation of it was not.
 
 **And the environment that fails is the opposite of the one predicted.** Earlier
 reasoning in this document held that dense woodland was the danger, because hops are

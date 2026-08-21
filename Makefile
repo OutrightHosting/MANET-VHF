@@ -26,7 +26,7 @@ DEPS     := $(CORE_OBJ:.o=.d) $(TEST_OBJ:.o=.d) $(ARM_OBJ:.o=.d)
 
 ARM_CC   := arm-none-eabi-gcc
 
-.PHONY: all test test-3slot budget freestanding arm arm-build arm-check arm-size trace sim sim-lib clean
+.PHONY: all test test-3slot budget freestanding arm arm-build arm-check arm-size trace sim sim-lib reuse clean
 
 all: test
 
@@ -184,3 +184,10 @@ trace: $(BUILD)/trace
 $(BUILD)/trace: tools/trace.c $(CORE_OBJ)
 	@mkdir -p $(@D)
 	$(CC) $(CSTD) $(WARN) $(INC) $(FREE) $(EXTRA_CFLAGS) -o $@ tools/trace.c $(CORE_OBJ)
+
+# Regenerate the OQ-0013 reuse table. It drifted once because nothing could reproduce it.
+reuse: $(SHLIB)
+	@python3 -c "import sys;sys.path.insert(0,'.');\
+from sim.manet.core import CONFIG;from sim.scenarios import reuse;\
+print(CONFIG);\
+[print('  %-16s collisions %4d  end-to-end %5.1f%%' % (r['env'],r['collisions'],r['delivery'][max(r['delivery'])]*100)) for r in (reuse.run(env_name=e) for e in ('woodland','open'))]"
