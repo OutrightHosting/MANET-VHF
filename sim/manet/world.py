@@ -249,8 +249,17 @@ class Simulation:
 
         # The forwarding rule: relay if we reach somebody the sender does not. Decided
         # from local knowledge, so it survives beacons being unable to get through.
+        #
+        # Receiver-decided relaying has one weakness that sender-decided MPR does not:
+        # every candidate reaches the same conclusion in the same slot and they all fire
+        # together, so passive acknowledgement cannot help — nobody goes first. Staggering
+        # them by link quality fixes that and buys redundancy at the same time. The radio
+        # with the strongest link to the sender relays immediately; weaker candidates take
+        # the following slots, and cancel themselves the moment they hear the frame go on
+        # without them. If the best relay fails, the next one covers a slot later.
         if rx.nb.should_relay(pdu.prev):
-            if rx.sched.relay(pdu, slot, rx.addr) == 0:
+            rank = (255 - min(quality, 255)) // 96      # 0, 1 or 2
+            if rx.sched.relay(pdu, slot + rank, rx.addr) == 0:
                 rx.relayed += 1
 
     def _payload_id(self, src, seq, slot):

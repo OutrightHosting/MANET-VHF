@@ -77,8 +77,13 @@ def main():
             seen.add(phase)
             print(f"        t={t:6.0f}s  {phase:12s} reachable from front {ra:2d}/12, "
                   f"from back {rb:2d}/12")
-    print(f"      reconverged {p['heal_s']:.0f} s after contact resumed"
-          if p["heal_s"] is not None else "      DID NOT RECONVERGE")
+    if p["heal_s"] is not None:
+        print(f"      fully reconverged {p['heal_s']:.0f} s after contact resumed")
+    elif p["heal_partial_s"] is not None:
+        print(f"      reconverged to {p['final_reach']}/{p['nodes']} in "
+              f"{p['heal_partial_s']:.0f} s — one radio never regained a two-way link")
+    else:
+        print("      DID NOT RECONVERGE")
     print(f"      -> {verdict(ok_part)}")
     results["partition"] = ok_part
     print()

@@ -108,12 +108,21 @@ def partition(n=12, samples=60):
 
     # how long after the halves are back in contact before everything reconverges
     rejoin_t = 90.0 + 120.0 + 90.0
-    heal = None
+    # Healed = topology converged and everyone reachable. Reported alongside the actual
+    # reachability, because a partition that "heals" to 11 of 12 has not healed — and
+    # that is exactly what happens when beacon starvation leaves one radio without a
+    # confirmed two-way link. See OQ-0009.
+    heal, heal_partial, final_reach = None, None, 0
     for t, phase, reach_a, _reach_b, ok in trace:
-        if t >= rejoin_t and reach_a == n and ok:
+        if t < rejoin_t:
+            continue
+        final_reach = reach_a
+        if ok and reach_a >= n - 1 and heal_partial is None:
+            heal_partial = t - rejoin_t
+        if ok and reach_a == n and heal is None:
             heal = t - rejoin_t
-            break
-    return {"trace": trace, "heal_s": heal, "rejoin_at_s": rejoin_t, "nodes": n}
+    return {"trace": trace, "heal_s": heal, "heal_partial_s": heal_partial,
+            "final_reach": final_reach, "rejoin_at_s": rejoin_t, "nodes": n}
 
 
 def latency(hops=6):
