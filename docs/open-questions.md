@@ -5,8 +5,9 @@ actually be answered — and a statement of what it blocks. When one closes, it 
 amendment to an existing one) and is struck through here rather than deleted.
 
 OQ-0001 and OQ-0003 through OQ-0008 come from [engineering brief §8](engineering-brief.md#8-open-decisions).
-OQ-0012 comes from [Addendum 01](addendum-01-packet-architecture.md). The rest surfaced while
-writing the decision log and are not yet in either document.
+OQ-0012 comes from [Addendum 01](addendum-01-packet-architecture.md). OQ-0014 through OQ-0016 come
+from [the feature set](feature-set.md). The rest surfaced while writing the decision log and are not
+yet in any of them.
 
 | # | Question | Answerable in | Blocks | Status |
 |---|---|---|---|---|
@@ -23,6 +24,9 @@ writing the decision log and are not yet in either document.
 | [OQ-0011](#oq-0011) | ~~Is full OLSR topology-control dissemination needed at all?~~ | — | — | **Closed** — TC stays |
 | [OQ-0012](#oq-0012) | Header field widths and total header size | **Phase 0** | ~~OQ-0002~~; the header format is forever | Open — no longer blocks OQ-0002 |
 | [OQ-0013](#oq-0013) | Spatial reuse distance and its coupling to slot count | **Phase 0** | Whether the 3-slot escape from OQ-0002 is safe | Open |
+| [OQ-0014](#oq-0014) | Authenticating command frames on an infrastructure-free mesh | Phase 3 (design now) | Whether radio disable can safely exist at all | Open |
+| [OQ-0015](#oq-0015) | Late entry — joining a call already in progress | **Phase 0** | Header/framing; costs bits that do not exist | Open |
+| [OQ-0016](#oq-0016) | Confirmed transactions across a moving multi-hop path | Phase 0 | Every confirmed feature in the set | Open |
 
 ---
 
@@ -191,6 +195,12 @@ Not required. AES is cheap to add and is expected in this class of product. The 
 cipher, it is key management on kit that is shared between volunteers with minimal training — which
 collides with hard requirement 8. Defer to Phase 3.
 
+**Note that this is confidentiality, and confidentiality is not the pressing half.** Authentication —
+proving a frame came from the node it claims — is a separate problem with a harder deadline, because
+[the feature set](feature-set.md) includes commands that act on a radio rather than merely being
+heard by it. Tracked separately as [OQ-0014](#oq-0014). Solving confidentiality does not solve it,
+though a shared key does most of the work for both.
+
 [ADR-0007](decisions/0007-packet-switched-frame-architecture.md) reserves frame type values
 `0x8`–`0xF` and address range `0xF0`–`0xFE`, which is where any key-management traffic would live.
 Confirm before Phase 3 that no header bit is needed for a cipher/plaintext discriminator — if one is,
@@ -329,5 +339,86 @@ Phase 0 must characterise: at what reuse distance does a pipelined chain start l
 realistic (not idealised disc) propagation, and with the irregular hop geometry a dispersed group on
 real terrain actually produces? The answer decides between escape routes 3 and 4.
 
+### The scenario that actually matters
+
+Reuse distance is measured in hops, but interference happens in metres, and the two are only loosely
+related. The dangerous case is therefore **not** the one intuition suggests.
+
+A group spread across open moorland has long hops — a few kilometres each. Three hops of separation
+is then the better part of ten kilometres, and two 5 W handsets that far apart cannot trouble each
+other. Reuse is safe and the slot count barely matters.
+
+The risk concentrates in **dense woodland**: terrain blocks the links, so a chain forms — but the
+hops are short, perhaps a couple of hundred metres, because that is all that gets through the trees.
+Three hops is then well under a kilometre of physical separation, and VHF at 5 W carries far beyond
+that even through foliage. The relaying node three hops down the chain may be perfectly audible to
+the originator's neighbours while transmitting in the same slot.
+
+So the case to simulate is: a group physically close together, blocked from one another by
+vegetation, forming a long chain of short hops. That is a normal Tuesday evening for this operator,
+not an edge case. Model it explicitly, with hop length as an independent variable, rather than
+trusting a hop count.
+
 Note this is analysis, not a measured result. It should be confirmed or demolished in simulation
 before anything is built on it.
+
+## OQ-0014
+### Authenticating command frames on an infrastructure-free mesh
+
+From [the feature set](feature-set.md). Most of the command-and-control set acts *on* a radio rather
+than merely being heard by it: radio check, call alert, remote monitor, and radio disable/enable.
+
+On a repeater system the command arrives through infrastructure the operator controls. On this
+network any node can originate any frame, so an unauthenticated disable command is a weapon that
+silences the group's radios — including, in the worst case, a radio whose user is in difficulty.
+
+Note this is **authentication, not confidentiality**, and [OQ-0007](#oq-0007) does not cover it.
+Encrypting a command does not prove who sent it.
+
+Two things to settle, and the first is not an engineering question:
+
+1. **Should remote disable exist at all for this operator?** For a youth organisation whose radios
+   exist for supervision and emergency escalation, a remotely silenceable handset is arguably a
+   liability rather than a feature. Radio check and call alert carry no equivalent risk.
+   Recommendation in [the feature set](feature-set.md): support it in the architecture, ship it
+   switched off, or omit it. Do not default into it.
+2. **What authenticates a command?** A shared group key gets most of the way and folds into
+   [OQ-0007](#oq-0007). Per-node keys are stronger and collide with hard requirement 8 (shared kit,
+   volunteers, minimal training). Reserve the header and payload space now; decide in Phase 3.
+
+## OQ-0015
+### Late entry — joining a call already in progress
+
+From [the feature set](feature-set.md). Not in the brief or the addendum.
+
+A radio switched on mid-transmission, or carried into range mid-call, has to work out what is
+happening and unmute. DMR solves this by embedding signalling periodically through the transmission,
+so a late-joining radio learns the talkgroup and call type without waiting for the next call.
+
+On a mesh this matters *more*, not less: a handset can come into range at any point along a relay
+chain, not just within reach of a single repeater. It is also a feature-parity gap rather than a
+novel problem — the established standard has it and users expect it.
+
+The difficulty is that the obvious implementation costs bits in a budget that
+[OQ-0002](#oq-0002) has already shown to be structurally short. Options: a periodic full-header
+frame within a voice stream, a rotating field, or accepting a slower join. Evaluate against the
+frame structure chosen for OQ-0002 rather than before it.
+
+## OQ-0016
+### Confirmed transactions across a moving multi-hop path
+
+From [the feature set](feature-set.md). A confirmed operation — radio check, call alert, text
+delivery receipt, emergency acknowledgement, confirmed private call setup — assumes the path lasts
+long enough for a response to return.
+
+Over one repeater hop that is safe. Over five mesh hops at walking pace it is not, and the return
+path may differ from the outbound one.
+
+Open: timeout values, retry limits, and whether a retry re-runs route discovery or reuses the stale
+path. The failure to avoid is one lost acknowledgement turning into repeated retries across the
+whole network on a 4.7 kbps channel — the point at which a convenience feature becomes a denial of
+service against voice.
+
+Note the architecture is already right for this: transaction state is endpoint state and lives in
+the control payload, not the header, so this costs **zero header bits**. See
+[the feature set](feature-set.md#confirmed-operations).

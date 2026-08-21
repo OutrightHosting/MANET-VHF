@@ -15,6 +15,7 @@ definition, the decisions already taken, and the questions still open.
 |---|---|
 | [Engineering brief](docs/engineering-brief.md) | What this is, why it exists, and what "done" looks like. Read first. |
 | [Addendum 01](docs/addendum-01-packet-architecture.md) | Packet architecture and gateway nodes. An architectural constraint, not a feature list. Read before writing any MAC, framing or routing code |
+| [Feature set](docs/feature-set.md) | What the product is: a digital radio system with dispatch-grade features, where the mesh replaces the repeater as transport |
 | [Decision log](docs/decisions/) | What has been decided and why — each with the observation that would reverse it |
 | [Open questions](docs/open-questions.md) | What has not been decided, what it blocks, and when it can be answered |
 
