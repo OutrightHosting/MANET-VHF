@@ -37,5 +37,6 @@ void test_config_all(void);
 void test_slot_all(void);
 void test_mesh_all(void);
 void test_dedup_all(void);
+void test_nama_all(void);
 
 #endif /* MANET_TEST_H */

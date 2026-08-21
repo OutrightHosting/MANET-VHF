@@ -45,6 +45,7 @@ class Node:
         # beacon rather than keying up over it.
         self.last_voice_slot = None
         self.beacon_deferrals = 0
+        self.last_beacon = None
 
         # metrics
         self.heard_payloads = {}   # (src, seq) -> slot first decoded
@@ -99,35 +100,12 @@ class Simulation:
 
     def _beacon_slot_for(self, node):
         """
-        Which slot in the beacon interval this radio beacons in.
-
-        Three constraints, all learned in Phase 0:
-
-        * the stagger step must not be a multiple of the slots per frame, or every
-          radio's beacon lands on the same phase of the voice cycle;
-        * a radio must not beacon in a phase it needs for voice — the one it transmits
-          in, or the one it must listen in;
-        * slots come from a bounded pool and are reused spatially.
-
-        The pool assignment here is deliberately naive: slot from the address. A real
-        implementation needs distributed colouring, where a radio that sees a neighbour
-        using its slot moves. That is part of OQ-0009 and is not designed.
+        Deprecated. Beacon slots are no longer hashed from an address — see
+        _schedule_beacons, which elects them with NAMA. Retained only so older probes do
+        not break.
         """
         interval = self.cfg.beacon_interval_slots
-        spf = self.cfg.slots_per_frame
-        pool = min(self.BEACON_POOL, interval)
-
-        step = max(interval // pool, 1)
-        if step % spf == 0:
-            step += 1
-        base = ((node.index % pool) * step) % interval
-
-        busy = {p for p in (node.voice_tx_phase, node.voice_rx_phase) if p is not None}
-        for shift in range(spf):
-            candidate = (base + shift) % interval
-            if candidate % spf not in busy:
-                return candidate
-        return base
+        return (node.index * max(interval // max(len(self.nodes), 1), 1)) % interval
 
     # -------------------------------------------------------------------- phases --
 
@@ -140,29 +118,44 @@ class Simulation:
 
     def _schedule_beacons(self, slot):
         """
-        Beacons defer to voice.
+        Beacons go out in slots this radio WINS, not slots it hashed itself into.
 
-        This is the channel access rule the brief does not contain, and without it the
-        two traffic classes destroy each other. Priority in Addendum 01 §5 arbitrates
-        inside one radio's scheduler; nothing arbitrates between radios, so a beacon and
-        a voice burst key up in the same slot and neither survives.
+        The election is NAMA (Bao & Garcia-Luna-Aceves, MobiCom 2001): every radio
+        computes a pseudo-random priority for itself and for everything within two hops,
+        and transmits only if its own is highest. All of them derive the same numbers from
+        the same inputs, so the outcome is collision-free by construction with no
+        handshake and nothing to go stale.
 
-        The rule: a radio that has transmitted or received voice within the last couple
-        of frames treats the channel as occupied and holds its beacon. It is the slotted
-        equivalent of listening before speaking, and it works because voice is
-        push-to-talk and bursty — the channel is idle most of the time.
+        What this replaces was hashing an address into a slot pool with no way to detect a
+        collision. Two radios that hashed alike never heard each other and were invisible
+        to every neighbour in common, permanently and silently — about a 39% chance across
+        twelve radios in a 132-slot interval.
 
-        The bounded deferral matters as much as the deferral. A radio that held its
-        beacon indefinitely through a long transmission would let its neighbours age it
-        out, so after MAX_DEFERRALS it beacons regardless and accepts one collision.
+        Two-hop contention is the point. A radio cannot hear a collision it causes two hops
+        away, and on a relaying mesh the victim is the shared relay between them.
         """
         interval = self.cfg.beacon_interval_slots
-        quiet = self.QUIET_FRAMES * self.cfg.slots_per_frame
-
         for n in self.nodes:
-            if slot % interval != self._beacon_slot_for(n):
+            # Due for a beacon?
+            if n.last_beacon is not None and (slot - n.last_beacon) < interval:
+                continue
+            # Win this slot?
+            if not n.nb.nama_wins(slot):
+                continue
+            # Winning the election says nobody within two hops will transmit in this slot.
+            # It says nothing about whether THIS radio can afford to. Two local rules still
+            # apply, and dropping them when NAMA went in cost eight points of delivery
+            # under movement:
+            #
+            #  - do not beacon in a phase this radio needs to hear voice on, or it goes
+            #    deaf in the slot that matters;
+            #  - hold off while a transmission is passing through, bounded so neighbours
+            #    can never age this radio out mid-call.
+            if (n.voice_rx_phase is not None
+                    and slot % self.cfg.slots_per_frame == n.voice_rx_phase):
                 continue
 
+            quiet = self.QUIET_FRAMES * self.cfg.slots_per_frame
             busy = (n.last_voice_slot is not None
                     and (slot - n.last_voice_slot) < quiet)
             if busy and n.beacon_deferrals < self.MAX_DEFERRALS:
@@ -177,19 +170,21 @@ class Simulation:
             n.seq = (n.seq + 1) & 0xFF
             if n.sched.originate(pdu, slot) == 0:
                 n.beacons_sent += 1
+                n.last_beacon = slot
 
     def voice_phase(self, node):
         """
-        Which slot of the frame this radio starts a transmission in.
+        Which slot of the frame this radio begins a transmission in.
 
-        Derived from its own address, so nothing assigns it and nothing has to be
-        negotiated. Without it every talker originates in slot 0 of every frame, and two
-        people speaking at once wipe each other out completely — measured as both streams
-        reaching their own side of a chain and neither crossing to the other.
+        Not a NAMA election. Voice needs a payload every frame — one slot in four — while
+        an election in an eleven-radio neighbourhood yields a win roughly one slot in
+        twelve. Channel-access election belongs on a superframe above the voice frame, not
+        inside it; that is the sizing constraint the literature review identifies and the
+        reason earlier attempts to reserve control slots inside the frame all failed.
 
-        Addresses are mixed before use. A plain odd multiplier is no good — times five
-        modulo four is just modulo four, so every odd address lands on the same two
-        phases. A multiplicative hash spreads them properly.
+        So this stays a hash of the radio's own address. Note a plain odd multiplier does
+        not work: times five modulo four is just modulo four, and every odd address lands
+        on the same two phases.
         """
         h = (node.addr * 0x9E3779B1) & 0xFFFFFFFF
         return (h >> 16) % self.cfg.slots_per_frame

@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "manet/dedup.h"
+#include "manet/nama.h"
 #include "manet/frame.h"
 #include "manet/mpr.h"
 #include "manet/neighbour.h"
@@ -280,4 +281,33 @@ EXPORT unsigned long mb_dedup_expire(void *d, unsigned long long slot,
 EXPORT int mb_mpr_should_relay(const void *t, unsigned from)
 {
     return manet_mpr_should_relay((const manet_nb_table_t *)t, (manet_addr_t)from) ? 1 : 0;
+}
+
+/* --------------------------------------------------------------- nama.h -- */
+
+EXPORT unsigned long mb_nama_priority(unsigned node, unsigned long long ctx)
+{
+    return (unsigned long)manet_nama_priority((manet_addr_t)node, (uint64_t)ctx);
+}
+
+EXPORT int mb_nama_wins(const void *t, unsigned long long ctx)
+{
+    return manet_nama_wins((const manet_nb_table_t *)t, (uint64_t)ctx) ? 1 : 0;
+}
+
+EXPORT int mb_nama_next_win(const void *t, unsigned long long from, unsigned limit,
+                            unsigned long long *out)
+{
+    uint64_t got = 0u;
+    if (!manet_nama_next_win((const manet_nb_table_t *)t, (uint64_t)from,
+                             (uint32_t)limit, &got)) {
+        return 0;
+    }
+    *out = (unsigned long long)got;
+    return 1;
+}
+
+EXPORT unsigned long mb_nama_contenders(const void *t)
+{
+    return (unsigned long)manet_nama_contenders((const manet_nb_table_t *)t);
 }

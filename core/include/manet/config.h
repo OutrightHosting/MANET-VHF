@@ -224,6 +224,18 @@
 #define MANET_FRONTIER_QUALITY 250u
 #endif
 
+/*
+ * Net entry. A radio that has heard nobody has a contention set of one and would win
+ * every election, so a group powering on together all transmit in every slot, collide,
+ * learn nothing, and never converge. Until it knows of at least this many contenders it
+ * contends against a virtual set of this size instead — which is slotted-ALOHA entry,
+ * the same shape as AIS §3.3.5 and USAP: back off, claim a slot, then settle into the
+ * schedule.
+ */
+#ifndef MANET_NAMA_MIN_CONTENDERS
+#define MANET_NAMA_MIN_CONTENDERS 12u
+#endif
+
 /* Largest PDU that can ride in one slot: everything on air except the sync word.
  * Header and FEC are carried inside this. */
 #define MANET_MAX_PDU_BITS  (MANET_SLOT_ONAIR_BITS - MANET_SYNC_BITS)

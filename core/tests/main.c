@@ -19,6 +19,8 @@ int main(void)
     test_mesh_all();
     printf("dedup\n");
     test_dedup_all();
+    printf("nama\n");
+    test_nama_all();
 
     printf("\n%d checks, %d failures\n", manet_test_checks, manet_test_failures);
     return manet_test_failures == 0 ? 0 : 1;

@@ -65,6 +65,10 @@ _SIGS = {
     "mb_dedup_init": (None, [_P]),
     "mb_dedup_check": (ctypes.c_int, [_P, _U, _U, _ULL]),
     "mb_dedup_expire": (_UL, [_P, _ULL, _ULL]),
+    "mb_nama_priority": (_UL, [_U, _ULL]),
+    "mb_nama_wins": (ctypes.c_int, [_P, _ULL]),
+    "mb_nama_next_win": (ctypes.c_int, [_P, _ULL, _U, ctypes.POINTER(_ULL)]),
+    "mb_nama_contenders": (_UL, [_P]),
 }
 
 for _name, (_res, _args) in _SIGS.items():
@@ -236,6 +240,20 @@ class NeighbourTable:
         out = _u8(64)
         n = int(_lib.mb_nb_two_hop(self.buf, out, 64))
         return [out[i] for i in range(min(n, 64))]
+
+    def nama_wins(self, context):
+        """Does this radio win the channel-access election for this context?"""
+        return bool(_lib.mb_nama_wins(self.buf, context))
+
+    def nama_next_win(self, start, limit=64):
+        out = _ULL()
+        if _lib.mb_nama_next_win(self.buf, start, limit, ctypes.byref(out)):
+            return int(out.value)
+        return None
+
+    @property
+    def contenders(self):
+        return int(_lib.mb_nama_contenders(self.buf))
 
     def beacon(self, mprs):
         m = _u8(len(mprs))
