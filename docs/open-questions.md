@@ -11,11 +11,11 @@ yet in any of them.
 
 | # | Question | Answerable in | Blocks | Status |
 |---|---|---|---|---|
-| [OQ-0001](#oq-0001) | Achievable gross bit rate at 25 kHz on CC1200 | Phase 1 | Slot count, vocoder rate, FEC strength | Open |
+| [OQ-0001](#oq-0001) | Achievable gross bit rate at 25 kHz on CC1200 | Phase 1 | **THE critical path** — the budget cannot close without it | **Open, blocking** |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
-| [OQ-0005](#oq-0005) | Slot count — is 4 right? | Phase 0, revisit Phase 1 | Per-slot payload, spatial reuse margin | Open |
+| [OQ-0005](#oq-0005) | ~~Slot count — is 4 right?~~ | — | — | **Closed** — [ADR-0008](decisions/0008-four-slots.md), 4 is forced |
 | [OQ-0006](#oq-0006) | VHF Mid Band or High Band | Ofcom enquiry | Nothing technical | Open |
 | [OQ-0007](#oq-0007) | Encryption | Phase 3 | BOM, key management UX | Open |
 | [OQ-0008](#oq-0008) | In-house or contracted development | Commercial | Schedule and cost | Open |
@@ -226,10 +226,14 @@ That 15.4-second figure is itself worth carrying into [OQ-0012](#oq-0012): it is
 limit on how long duplicate-suppression state may live, and it is not generous.
 
 ## OQ-0005
-### Slot count
+### ~~Slot count~~
 
-Four is derived from Codec2 3200 plus 47% FEC at 19.2 kbps — and that derivation is exactly the one
-that does not close ([OQ-0002](#oq-0002)). Revisit once the gross rate is measured.
+**Closed** by [ADR-0008](decisions/0008-four-slots.md), 2026-08-21. **Four, and it is forced
+rather than chosen:** spatial reuse requires at least four ([OQ-0013](#oq-0013)) and the voice
+payload fits in at most four — at five slots a 12 ms slot carries 211 bits and sync plus header
+plus Codec2 3200 need 258. Only one value satisfies both.
+
+Original reasoning, retained:
 
 The coupling is now better understood than when this was first written, and it is not the one the
 brief describes. Slot count sets:
