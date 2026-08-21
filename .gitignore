@@ -1,0 +1,29 @@
+# Build
+build/
+*.o
+*.a
+*.elf
+*.bin
+*.hex
+*.map
+*.d
+
+# CFFI / Python
+__pycache__/
+*.py[cod]
+*.so
+*.dylib
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Simulation output
+sim/out/
+*.csv
+*.png
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
