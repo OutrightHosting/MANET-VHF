@@ -30,13 +30,21 @@ ERP limits, and which VHF band the transceiver is characterised for
       every other at every sample and the mobility criterion could not fail. Stretch is now
       derived — `DISPERSAL_HOPS × RANGE_M` = 15.5 km, 3.5× the horizon — reaching **4 hops**
       deep, and the criterion **fails below 3**. Verified to fail at the old 3000 m.
-- [x] **B-02 · Gate Q5 never partitions.** ✅ **Fixed.** Separation is now `PARTITION_MARGIN × RANGE_M + jitter` = 7.4 km; halves genuinely split to 6/12 each, and the criterion fails if they never lose contact. `SplinterRejoin(separation_m=4000.0)`
-      ([gate.py:96](../sim/scenarios/gate.py)) against 4416 m range. The log reports 12/12
-      reachable while "apart", and then reports reconvergence from a split that never
-      happened. **Done when:** the halves genuinely lose contact and the reported
-      reconvergence time is real. *Hours.*
-- [x] **B-03 · Re-read every "gate 5/5" claim made since terrain landed.** ✅ **Done.** The claims were unsupported when made but survive the corrected test: 5/5 still, now on criteria that can fail. Two of five
-      criteria could not fail. Correct anything downstream that leaned on them. *Hours.*
+- [x] **B-02 · Gate Q5 never partitions.** ✅ **Fixed 2026-08-21.**
+      `SplinterRejoin(separation_m=4000.0)` against a 4416 m range, with ±150 m of cluster
+      jitter putting the closest cross-boundary pair at 3700 m. The halves never lost
+      contact — the trace printed 12/12 reachable while "apart" — and the runner then
+      reported a reconvergence time for a split that never happened. Separation is now
+      derived: `PARTITION_MARGIN × RANGE_M + jitter` = 7.4 km, 1.7× the horizon. The halves
+      split to **6/12 each way**, heal in 5.4 s to 12/12, and the criterion **fails if they
+      never lose contact**. Verified to fail at the old 4000 m.
+- [x] **B-03 · Re-read every "gate 5/5" claim made since terrain landed.** ✅ **Done
+      2026-08-21.** Two of five criteria could not fail, so every 5/5 since terrain landed
+      was unsupported at the time. Re-run against the corrected gate: **still 5/5**, now on
+      criteria that can fail. The claims were unearned when made and happen to be true.
+
+**P0 is clear.** The gate tests what it says it tests. Everything below is measured against
+an instrument that can now report a failure.
 
 ## P1 — Lead time. Hardware procurement; order early because it just waits.
 
