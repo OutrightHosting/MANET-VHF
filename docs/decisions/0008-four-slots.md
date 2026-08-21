@@ -1,8 +1,14 @@
 # ADR-0008: Four slots per frame
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0009](0009-frame-structure-with-real-preamble.md)
 **Date:** 2026-08-21
 **Phase:** Phase 0
+> **SUPERSEDED 2026-08-21.** Both arguments below assume a 24-bit preamble. The only
+> published figure for the same channel — NBWF, FFI-rapport 2009/01894 §4.3 — is **8 ms**,
+> which is 154 bits at 19.2 kbps. The spatial-reuse half survives that unchanged; the payload
+> half inverts completely, because a 15 ms slot then carries 110 bits against 234 needed for
+> header and voice alone. See [ADR-0009](0009-frame-structure-with-real-preamble.md).
+
 **Amends:** [ADR-0002](0002-tdma-slot-pipelining.md) — confirms its slot count on evidence it did not have
 **Closes:** [OQ-0005](../open-questions.md#oq-0005), [OQ-0013](../open-questions.md#oq-0013)
 

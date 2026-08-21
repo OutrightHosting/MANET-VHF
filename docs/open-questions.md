@@ -32,6 +32,7 @@ yet in any of them.
 | [OQ-0019](#oq-0019) | Uniform-environment propagation cannot express a blocked link | **Phase 0** | The confidence attached to OQ-0013 | Open |
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
 | [OQ-0021](#oq-0021) | Many-to-many — streams now cross; `dst` still inert | **Phase 0** | Addressed calls; concurrent-stream quality | Open — no longer total failure |
+| [OQ-0022](#oq-0022) | Which latency budget applies, and therefore the reach | **Before Phase 1** | Selects the frame structure | **Open — product decision** |
 
 ---
 
@@ -1044,3 +1045,31 @@ Recorded as claims pending verification, not as findings:
   mesh, which is an infrastructure dependency the brief does not acknowledge.
 - **Neighbour table overflow is first-heard-wins with no eviction.** At twenty radios in one
   earshot group the audit reports three of them invisible to every peer.
+
+## OQ-0022
+### Which latency budget applies, and therefore how far the network reaches
+
+Raised by [ADR-0009](decisions/0009-frame-structure-with-real-preamble.md). It is a product
+decision that has been made implicitly three times in this project, differently each time.
+
+Paying a realistic 8 ms preamble forces longer slots, longer slots cost per-hop latency, and
+the usable diameter then depends entirely on which figure the product is held to:
+
+| Budget | Source | Hops at 120 ms / 4 × 30 ms |
+|---|---|---|
+| 300 ms network only | the brief's own Phase 0 criterion | 5 — passes exactly |
+| 300 ms mouth-to-ear | 3GPP TS 22.179 R-6.15.3.2-015 | **2** |
+| 500 ms mouth-to-ear | NBWF's alternative requirement | 5 |
+
+These are not variations on a theme. Two hops covers a group that has drifted apart on one
+hillside; five covers a dispersed group across a valley. The brief's criterion is the loosest
+of the three because it measures propagation only, and it was almost certainly not intended
+to exclude packetisation and jitter — but as written, that is what it does.
+
+NBWF hits the same wall from the other side: its own design reaches ~300 ms **before any
+relaying at all**, against a 250 ms requirement, and cites 500 ms as the alternative. A
+standards body writing for this channel could not meet its own tighter figure.
+
+**Decide this before Phase 1**, because it selects the frame. At a 500 ms budget the 90 ms /
+4 × 22.5 ms alternate reaches seven hops at 30% FEC; at 300 ms mouth-to-ear nothing reaches
+more than three whatever the structure.

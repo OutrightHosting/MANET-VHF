@@ -22,7 +22,8 @@ decision stands and we stop discussing it.
 | [0005](0005-cc1200-stm32-bench-platform.md) | CC1200 + STM32F4 bench platform; SDR and adapted DMR rejected | Accepted |
 | [0006](0006-c-core-python-harness.md) | One protocol implementation in C, driven by a Python simulation harness | Accepted |
 | [0007](0007-packet-switched-frame-architecture.md) | Packet-switched frame architecture with typed, addressed frames | Accepted |
-| [0008](0008-four-slots.md) | Four slots per frame — forced from both directions | Accepted |
+| [0008](0008-four-slots.md) | ~~Four slots per frame — forced from both directions~~ | Superseded by 0009 |
+| [0009](0009-frame-structure-with-real-preamble.md) | 120 ms frame, 4 × 30 ms, voice over two slots | Accepted |
 
 ## Format
 
