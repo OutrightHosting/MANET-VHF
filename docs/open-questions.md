@@ -32,7 +32,7 @@ yet in any of them.
 | [OQ-0019](#oq-0019) | Uniform-environment propagation cannot express a blocked link | **Phase 0** | The confidence attached to OQ-0013 | Open |
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
 | [OQ-0021](#oq-0021) | Many-to-many — streams now cross; `dst` still inert | **Phase 0** | Addressed calls; concurrent-stream quality | Open — no longer total failure |
-| [OQ-0022](#oq-0022) | Which latency budget applies, and therefore the reach | **Before Phase 1** | Selects the frame structure | **Open — product decision** |
+| [OQ-0022](#oq-0022) | ~~Which latency budget applies~~ | — | — | **Closed** — 500 ms mouth-to-ear |
 
 ---
 
@@ -1070,6 +1070,10 @@ NBWF hits the same wall from the other side: its own design reaches ~300 ms **be
 relaying at all**, against a 250 ms requirement, and cites 500 ms as the alternative. A
 standards body writing for this channel could not meet its own tighter figure.
 
-**Decide this before Phase 1**, because it selects the frame. At a 500 ms budget the 90 ms /
+**Decided 2026-08-21: 500 ms mouth-to-ear.** With the 200 ms frame that gives four usable
+hops — 200 ms packetisation, ~60 ms de-jitter and codec, 240 ms of network at 50 ms per hop.
+`MANET_VOICE_TTL` is set to 4 to match, and the Phase 0 scenarios are sized to it.
+
+Original discussion: At a 500 ms budget the 90 ms /
 4 × 22.5 ms alternate reaches seven hops at 30% FEC; at 300 ms mouth-to-ear nothing reaches
 more than three whatever the structure.

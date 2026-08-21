@@ -115,6 +115,10 @@ class Simulation:
     # time, so a held beacon can never age a link out.
     QUIET_FRAMES = 2
     MAX_DEFERRALS = 6
+    # Off. It buys a few points of delivery in dense topologies and costs three slots
+    # per hop — at 50 ms slots that is 150 ms against 50 ms, and the latency budget
+    # cannot pay it. Coverage-based suppression now handles what the stagger was for.
+    STAGGER = False
 
     def _schedule_beacons(self, slot):
         """
@@ -288,7 +292,11 @@ class Simulation:
         # the following slots, and cancel themselves the moment they hear the frame go on
         # without them. If the best relay fails, the next one covers a slot later.
         if rx.nb.should_relay(pdu.prev):
-            rank = (255 - min(quality, 255)) // 96      # 0, 1 or 2
+            # Stagger candidates by link quality so they do not all fire in the same
+            # slot. Sized as a FRACTION of the frame, not a fixed slot count: it was
+            # tuned at 15 ms slots and at 50 ms a three-slot spread costs 150 ms per hop,
+            # which dominates the latency budget entirely.
+            rank = ((255 - min(quality, 255)) // 96) if self.STAGGER else 0
 
             # If the chosen slot already holds another payload of equal priority the
             # scheduler refuses, and a refused relay is a silently dropped one — the

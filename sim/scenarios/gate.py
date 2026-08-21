@@ -45,7 +45,7 @@ def cluster(n=12, seconds=90):
     }
 
 
-def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0):
+def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=1800.0):
     """
     The group stretches out and gathers up again while someone is talking.
 
@@ -53,7 +53,10 @@ def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0):
     channel is idle. Continuous transmission is not an operational case, and testing
     against it starves the control plane in a way real use never would.
     """
-    mob = DispersingGroup(n, spread_min=120.0, spread_max=3000.0, period_s=240.0)
+    # Spread bounded by what the frame can actually carry. At 50 ms slots and a 500 ms
+    # mouth-to-ear budget the network is four hops deep; in woodland that is about 1.9 km
+    # of dispersal. Testing an 11-hop spread would measure the TTL, not the protocol.
+    mob = DispersingGroup(n, spread_min=120.0, spread_max=spread_max, period_s=240.0)
     sim = Simulation(mob, WOOD, BUDGET, talker=0)
     settle = CONFIG.beacon_interval_slots * 4
     sim.run(settle)
@@ -125,10 +128,10 @@ def partition(n=12, samples=60):
             "final_reach": final_reach, "rejoin_at_s": rejoin_t, "nodes": n}
 
 
-def latency(hops=6):
+def latency(hops=4):
     """Slots, and milliseconds, from the talker's mouth to each relay down the chain."""
     reach = usable_range_m(WOOD, BUDGET)
-    pos = [(i * 0.9 * reach, 0.0) for i in range(hops + 1)]
+    pos = [(i * 0.9 * reach, 0.0) for i in range(hops + 1)]  # within the TTL
     sim = Simulation(pos, WOOD, BUDGET, talker=0)
     settle = CONFIG.beacon_interval_slots * 4
     sim.run(settle)

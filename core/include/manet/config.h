@@ -41,7 +41,7 @@
 #endif
 
 #ifndef MANET_FRAME_DURATION_US
-#define MANET_FRAME_DURATION_US 60000L
+#define MANET_FRAME_DURATION_US 200000L
 #endif
 
 #ifndef MANET_SLOTS_PER_FRAME
@@ -58,18 +58,33 @@
 #define MANET_GUARD_PERMILLE 83L
 #endif
 
-/* Sync word / preamble. ASSUMED, not derived — DMR spends 48. Largest unverified
- * number in the budget. Owned by the modem layer, not by `frame`, but it competes
- * for the same bits so it is accounted here. */
+/*
+ * Acquisition and signalling preamble, per burst. 154 bits is 8 ms at 19.2 kbps, which is
+ * NBWF's measured figure for the same 25 kHz channel — sync 1.5 ms, Start-Of-Message
+ * 2.1 ms, Par 1.6 ms, transition 0.1 ms (FFI-rapport 2009/01894 §4.3).
+ *
+ * This was 24 bits, guessed, and being out by six times invalidated the frame structure
+ * rather than merely tightening it. It is a fixed cost per burst, so it is what decides
+ * how long a slot has to be: short slots are dominated by it.
+ *
+ * NBWF's physical layer is not ours and a simpler CC1200 mode may need far less. Measuring
+ * it is now the highest-value item in Phase 1 — the bit rate tunes the budget, the preamble
+ * decides the frame.
+ */
 #ifndef MANET_SYNC_BITS
-#define MANET_SYNC_BITS 24L
+#define MANET_SYNC_BITS 154L
 #endif
 
 /* -------------------------------------------------------------------- Voice -- */
 
-/* Codec2 3200 over one 60 ms frame. See ADR-0004. */
+/*
+ * Codec2 3200 over one 200 ms frame. Voice occupies ONE slot per frame, not several:
+ * spreading a payload over M slots divides the spatial reuse distance by M, and at M=2 the
+ * reuse distance falls to 2 hops, which is the hidden-terminal case that forced four slots
+ * in the first place. See ADR-0009.
+ */
 #ifndef MANET_VOICE_PAYLOAD_BITS
-#define MANET_VOICE_PAYLOAD_BITS 192L
+#define MANET_VOICE_PAYLOAD_BITS 640L
 #endif
 
 /* ----------------------------------------------------------- Header widths -- */
@@ -268,16 +283,15 @@
 /*
  * TTL a radio stamps on voice it originates.
  *
- * Bounded by LATENCY, not by the field width. 3GPP TS 22.179 R-6.15.3.2-015 sets 300 ms
- * mouth-to-ear for 95% of voice bursts; our chain costs roughly 60 ms packetisation +
- * ~30 ms mean slot wait + 15 ms per hop + ~60 ms de-jitter + ~30 ms codec, so 180 + 15H
- * gives H <= 8. A voice frame that outlives that is occupying the network to deliver audio
- * nobody can hold a conversation over.
+ * Bounded by LATENCY, not by the field width. The budget is 500 ms mouth-to-ear (OQ-0022,
+ * decided): 200 ms packetisation + ~60 ms de-jitter and codec leaves 240 ms of network, and
+ * at 50 ms per hop that is four hops. A voice frame outliving that occupies the network to
+ * deliver audio too late to answer.
  *
  * Data is not latency-bound and may use the full field.
  */
 #ifndef MANET_VOICE_TTL
-#define MANET_VOICE_TTL 8u
+#define MANET_VOICE_TTL 4u
 #endif
 
 /* Largest PDU that can ride in one slot: everything on air except the sync word.

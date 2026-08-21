@@ -20,7 +20,7 @@ def chain(n, spacing):
     return [(i * spacing, 0.0) for i in range(n)]
 
 
-def run(nodes=8, spacing_frac=0.9, slots=1200, env_name="woodland"):
+def run(nodes=5, spacing_frac=0.9, slots=1200, env_name="woodland"):
     env = ENVIRONMENTS[env_name]
     budget = LinkBudget()
     reach = usable_range_m(env, budget)

@@ -15,23 +15,24 @@ void test_config_all(void)
     CHECK_EQ(MANET_HEADER_BYTES, (MANET_HEADER_BITS + 7) / 8);
 
 #if (MANET_SLOTS_PER_FRAME == 4L) && (MANET_GROSS_BITRATE_BPS == 19200L) \
-    && (MANET_VOICE_PAYLOAD_BITS == 192L) && (MANET_ADDR_BITS == 8u) && (MANET_SEQ_BITS == 8u) && (MANET_TTL_BITS == 4u)
+    && (MANET_FRAME_DURATION_US == 200000L) \
+    && (MANET_VOICE_PAYLOAD_BITS == 640L) && (MANET_ADDR_BITS == 8u) && (MANET_SEQ_BITS == 8u) && (MANET_TTL_BITS == 4u)
     /* Straw-man values below. Skipped when the configuration is swept — see
      * tools/budget.sh and `make test-3slot`. */
     /* Frame structure */
-    CHECK_EQ(MANET_SLOT_DURATION_US, 15000);
-    CHECK_EQ(MANET_GUARD_US, 1245);
-    CHECK_EQ(MANET_BURST_US, 13755);
+    CHECK_EQ(MANET_SLOT_DURATION_US, 50000);
+    CHECK_EQ(MANET_GUARD_US, 4150);
+    CHECK_EQ(MANET_BURST_US, 45850);
 
     /* Header — 42 bits in 6 bytes since the previous-hop field (OQ-0018) */
     CHECK_EQ(MANET_HEADER_BITS, 42);
     CHECK_EQ(MANET_HEADER_BYTES, 6);
 
     /* The budget. Six bits for FEC — OQ-0002, made worse by OQ-0018. */
-    CHECK_EQ(MANET_SLOT_RAW_BITS, 288);
-    CHECK_EQ(MANET_SLOT_ONAIR_BITS, 264);
-    CHECK_EQ(MANET_FEC_BITS_AVAILABLE, 6);
-    CHECK_EQ(MANET_FEC_PERCENT, 2);
+    CHECK_EQ(MANET_SLOT_RAW_BITS, 960);
+    CHECK_EQ(MANET_SLOT_ONAIR_BITS, 880);
+    CHECK_EQ(MANET_FEC_BITS_AVAILABLE, 44);
+    CHECK_EQ(MANET_FEC_PERCENT, 6);
 
     /* Sanity: the address map's documented capacities */
     CHECK_EQ(MANET_ADDR_HANDHELD_MAX - MANET_ADDR_HANDHELD_MIN + 1, 159);

@@ -22,20 +22,43 @@ argument inverts: a 15 ms slot yields 110 bits of data, and the header and voice
 
 ## Decision
 
-**120 ms frame, four slots of 30 ms, voice payload spanning two slots.**
+**200 ms frame, four slots of 50 ms, voice payload in ONE slot.**
+
+> **Corrected before implementation.** The first version of this ADR specified a 120 ms
+> frame with voice spanning two slots, claiming 60% FEC. That figure was bought by breaking
+> spatial reuse. A payload occupying M slots per hop wraps into the originator's next burst
+> after N/M hops, so **reuse distance is N/M** — at M=2 it falls to two hops, which is the
+> hidden-terminal case that forced four slots in the first place. Voice must occupy one slot.
 
 | | Value |
 |---|---|
-| Frame | 120 ms (six Codec2 3200 frames, 384 bits) |
-| Slots | 4 × 30 ms |
+| Frame | 200 ms (Codec2 3200 → 640 bits) |
+| Slots | 4 × 50 ms |
 | Preamble | 154 bits (8 ms) per burst |
-| Data per slot | 375 bits |
-| Header + half the voice payload | 234 bits |
-| **Left for FEC** | **141 bits — 60%** |
-| Per-hop latency | 60 ms (two slots) |
-| 5-hop network latency | **300 ms** |
+| Data per slot | 880 bits on air |
+| Header + voice | 682 bits |
+| **Left for FEC at 19.2 kbps** | **44 bits — 6%** |
+| Per-hop latency | 50 ms |
+| Usable depth at 500 ms mouth-to-ear | **4 hops** |
 
-Four slots is retained, on the argument that survives: spatial reuse needs Δ = N−2 ≥ 2, and
+**The budget does not close at 19.2 kbps.** With voice in one slot, as spatial reuse
+requires, the arithmetic is unforgiving:
+
+| Gross rate | FEC |
+|---|---|
+| 19.2 kbps (assumed) | 6% |
+| 22.4 kbps | 28% |
+| **25.6 kbps** | **49%** — exceeds DMR |
+
+And it cannot be fixed by lengthening the frame. Under N ≥ 4M, available capacity grows as
+4.40·(F/M) − 154 while voice grows as 3.2·(F/M), so the FEC ratio converges to about 37%
+and **47% is unreachable at any frame length** with Codec2 3200 at 19.2 kbps. 25% would need
+a 516 ms frame — longer than the whole latency budget.
+
+Codec2 2400 reaches 25% at a 147 ms frame and 47% at 247 ms. So the two escapes are the two
+the brief always listed as open: **a measured bit rate near 25 kbps, or a lower vocoder rate.**
+
+Four slots is retainedFour slots is retained, on the argument that survives: spatial reuse needs Δ = N−2 ≥ 2, and
 Li et al.'s measured hardware figure is Δ = 1.2. Three slots still fails.
 
 The 30 ms slot is what amortises the preamble. NBWF reached 22.5 ms slots by the same
@@ -48,12 +71,16 @@ and that is the price of paying the preamble once per two slots rather than once
 
 ## Consequences
 
-- **FEC goes from 6 bits to 141 — 60%, above DMR's 47%.** [OQ-0002](../open-questions.md#oq-0002),
-  the blocking item for the whole of Phase 0, is closed by lengthening the slot rather than by
-  any of the five escape routes considered. None of them was the answer; the frame was.
-- **Per-hop latency triples**, 15 ms to 60 ms. Five hops is 300 ms of network latency, exactly
-  the brief's stated criterion, so a five-hop chain still passes — but with no margin, where
-  it previously had 4×.
+- **[OQ-0002](../open-questions.md#oq-0002) does not close.** FEC goes from 6 bits to 44 —
+  still 6%. Lengthening the slot recovers what the preamble costs and no more. The blocking
+  item survives, and the escape routes are the ones it always had.
+- **Usable depth halves, from about 8 hops to 4.** This is the largest practical consequence.
+  At 50 ms per hop and 500 ms mouth-to-ear the network is four hops deep, which in woodland
+  is roughly 1.9 km of dispersal. A group strung out over 3 km is beyond reach.
+- **Per-hop latency more than triples**, 15 ms to 50 ms.
+- **The relay stagger had to be removed.** Ranking candidates over three slots cost 150 ms per
+  hop at 50 ms slots against 50 ms without, and the budget cannot pay it. Coverage-based
+  suppression now does what the stagger was introduced for.
 - **Mouth-to-ear tightens badly.** At 120 ms packetisation plus ~60 ms jitter and codec, a
   300 ms mouth-to-ear budget (3GPP TS 22.179) allows **two hops**. A 500 ms budget allows
   five. NBWF faces the same wall: its own design reaches ~300 ms *before any relaying*, against
