@@ -77,6 +77,9 @@ These are non-negotiable and derived from operational reality, not preference.
 | Modulation | 4FSK | Scaling DMR's proven 9.6 kbps in 12.5 kHz |
 | Gross bit rate | ~19.2 kbps | Assumption — based on DMR spectral efficiency. Verify against chosen transceiver |
 | TX power | 5 W | IR 2044 permits 25 W ERP for mobile stations. 5 W chosen conservatively |
+| **Endurance** | **10–12 hours** | **Hard requirement.** Issued at the start of an event, returned at the end. No mid-day charge, no battery swap. [power-budget.md](power-budget.md) |
+| **Form factor** | **Body-worn only** | **Hard requirement.** Every node is carried by a person. No placed, sited or unattended relays — not even a spare handset left on high ground. Relaying is automatic or it does not exist |
+| **GNSS** | **Degraded, not dependent** | The network must survive GPS loss. It need not survive *total* denial — one node with a fix is enough, and time propagates from it. [OQ-0031](open-questions.md#oq-0031) |
 | Antenna | Helical, ~15–20 cm | Full quarter wave at 155 MHz is 48 cm — unwearable. Accept 3–6 dB loss |
 
 ### 4.2 MAC layer — TDMA

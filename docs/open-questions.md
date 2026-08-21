@@ -19,6 +19,7 @@ yet in any of them.
 | [OQ-0028](#oq-0028) | Do two co-slot relays carrying an identical payload decode? | Phase 1 | **Every delivery figure in the project.** 7 hops vs 3 | **Open, blocking** |
 | [OQ-0029](#oq-0029) | FFI deferred automatic relaying as possibly infeasible in 25 kHz | Phase 0 | Whether the core premise holds | **Open — risk register** |
 | [OQ-0030](#oq-0030) | Are we optimising the wrong thing — hop count instead of range per hop? | **Now, it is a strategy question** | Direction of the whole MAC effort | **Open** |
+| [OQ-0031](#oq-0031) | GPS holdover and network time transfer | Phase 0 design, Phase 1 measure | Whether losing GPS loses the network | **Open** |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1257,6 +1258,29 @@ large field. The protocol does not know the difference.
 ## OQ-0026
 ### TX duty cycle — the price of everyone being a relay
 
+> **Corrected 2026-08-21. The alarming figures below are per unit of CHANNEL OCCUPANCY, and
+> were read as though they were per unit of wall-clock time.** The simulator's talker never
+> releases PTT, so 20.4% worst-node duty means 20.4% *while someone is talking continuously*.
+> Scaled to a heavy-but-real 30% occupancy it is 9.0%, and the 10–12 hour requirement is met
+> with margin in every credible combination — see [power-budget.md](power-budget.md).
+>
+> Two further corrections:
+>
+> - The baseband figure of 1.5 W used below was **invented**, not sourced. It is also now the
+>   *dominant* term: at realistic occupancy the always-on receive path costs more than the PA.
+>   Measuring it is Phase 1's job and it matters more than PA efficiency.
+> - **The mitigation proposed below no longer exists.** Folding a remaining-battery term into
+>   `manet_nama_priority()` cannot work: [ADR-0011](decisions/0011-barrage-relaying.md)
+>   removed the election from voice relaying entirely, so NAMA governs only beacons (~0.36%
+>   duty) and there is no per-frame priority left to steer. There is also nothing to rotate —
+>   barrage makes relay load flat rather than concentrated, which fixes the differential-drain
+>   problem by levelling it. The only remaining lever on airtime is **fewer relays**, i.e.
+>   Controlled Barrage Regions.
+>
+> What survives unchanged: **thermal**. 5.86 W of PA draw dissipating ~4.4 W inside a plastic
+> case is a junction-temperature problem during sustained transmit whether or not the battery
+> lasts, and it needs measuring separately from runtime.
+
 **Measured, not assumed.** Running the three-groups-over-a-hill scenario with a single talker
 and counting bursts per node from `Simulation.tx_log`:
 
@@ -1437,7 +1461,22 @@ not about them, and it should be visible next to the delivery figures rather tha
 
 **What would close it.** Either the Phase 1 bench confirming OQ-0028 and OQ-0001 — at which
 point we have something FFI did not, namely measurements — or finding out what happened to
-NBWF after 2011. If automatic relaying was later added to the STANAG, that is the strongest
+NBWF after 2011.
+
+> **Amended 2026-08-21: FFI's own fallback is not available to us.** The brief now carries
+> **body-worn only** as a hard requirement — every node is carried by a person, and no radio
+> is placed, sited or left anywhere, not even a spare handset on high ground. That removes
+> dedicated relays as an escape route, which is exactly what FFI retreated to.
+>
+> It does **not** leave us without a floor. Receiver-decided relaying with the NAMA election
+> — the design before [ADR-0011](decisions/0011-barrage-relaying.md) — is still fully
+> automatic and fully body-worn. It gives 3–4 hops instead of 7. So the honest worst case is
+> **reduced reach, not no product**.
+>
+> What the requirement does change is the weight on [OQ-0028](#oq-0028). With no dedicated
+> relay to fall back on, that single bench measurement is the difference between a seven-hop
+> network and a three-hop one, with nothing else to try. It was the most important open
+> question already; it is now the only one that can change the product's reach. If automatic relaying was later added to the STANAG, that is the strongest
 possible answer. If NBWF was never fielded, that is informative too.
 
 ## OQ-0030
@@ -1472,3 +1511,60 @@ no amount of link margin gets through a ridge, only a radio standing on it.
 The bench measurement that decides it is [OQ-0001](#oq-0001) — if a lower-rate mode buys
 substantially more range in the same channel, the right answer may be fewer, longer hops with
 a lower vocoder, not more, cheaper hops. That is a different product.
+
+## OQ-0031
+### What happens when GPS goes away
+
+Nearly every advantage this design has over [NBWF](nbwf-lessons.md) traces to one thing: FFI
+were required to work without GNSS, and we are not. That makes GPS dependence a fair question
+and it has never been answered.
+
+**What actually breaks, in order of how quickly.**
+
+*Slot timing* degrades gradually. The whole `MANET_GUARD` of 3320 µs is the error budget, and
+it is consumed by the **relative** drift between two nodes — so twice the per-node figure:
+
+| Reference | ppm | Relative drift | Holdover before slots overlap | Cost |
+|---|---|---|---|---|
+| Cheap XO | 20 | 40 µs/s | **83 s** | ~£0.20 |
+| Standard TCXO | 2 | 4 µs/s | **14 min** | ~£1 |
+| Good TCXO | 0.5 | 1 µs/s | **55 min** | ~£3 |
+| MEMS OCXO | 0.05 | 0.1 µs/s | **9.2 h** | ~£15 |
+| OCXO | 0.01 | 0.02 µs/s | 46 h | ~£40 |
+
+*Acquisition* degrades next. [OQ-0024](#oq-0024): a free-running LO at ±2 ppm forces
+`TOC_LIMIT ≥ 1` and the preamble goes from 56 bit-times to ~128, which costs hops.
+
+*Concurrent relaying fails hardest.* [OQ-0028](#oq-0028) rests on identical co-slot copies
+combining, and carrier frequency offset between transmitters is precisely what breaks that.
+Worse, the mobility stress test measured a **mean of 3.7–9.4 and a maximum of 11 identical
+copies in one slot** — CFO risk scales with the number of co-transmitters, not with two. So
+GPS loss does not merely degrade barrage, it is the mechanism most likely to collapse it.
+
+**The requirement we actually have is much weaker than FFI's, and that is the answer.**
+
+They needed the waveform to work with **zero** GNSS anywhere, because their threat model is
+jamming. Ours is not. The realistic UK loss cases for a youth-organisation leader — dense
+canopy, a deep valley, inside a building — are **local and partial**. In a mesh, that is the
+easy case: **one node with a fix is enough**, and time propagates from it through the same
+beacons that already carry neighbour state.
+
+So the design is three layers, and only the first exists today:
+
+1. **GPS-disciplined** where a fix is available. Built.
+2. **Network time transfer** — a node without a fix slaves to a neighbour that has one,
+   with a hop count so error accumulates predictably. Not built. This is the layer that turns
+   a hard dependency into a soft one, and it is cheap because the beacon already exists.
+3. **Holdover** when nobody has a fix. Bounded by the oscillator, per the table above.
+
+**The decision this forces is a component choice, and it is worth making early.** A £3
+good TCXO gives 55 minutes of total-blackout holdover; £15 of MEMS OCXO gives 9.2 hours,
+which covers a whole event. Against a radio that already needs a PA, a GPS receiver and an
+STM32, £15 is not the expensive part — and it also directly serves
+[OQ-0024](#oq-0024) and [OQ-0028](#oq-0028), both of which want a disciplined reference for
+reasons that have nothing to do with GPS outages.
+
+**Note this is a different question from disciplining the LO.** Holdover is about how long
+the reference stays good with no correction; [OQ-0003](#oq-0003) and OQ-0024 are about
+whether the 40 MHz reference is steered by GPS at all. The same part answers both, which is
+why they should be decided together.
