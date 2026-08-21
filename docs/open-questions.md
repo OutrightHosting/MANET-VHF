@@ -31,6 +31,7 @@ yet in any of them.
 | [OQ-0018](#oq-0018) | ~~The header cannot express the previous hop~~ | — | — | **Closed** — field added |
 | [OQ-0019](#oq-0019) | Uniform-environment propagation cannot express a blocked link | **Phase 0** | The confidence attached to OQ-0013 | Open |
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
+| [OQ-0021](#oq-0021) | Many-to-many does not work; `dst` is inert | **Phase 0** | **BLOCKING.** It is a broadcast tree, not a MANET | **Open, blocking** |
 
 ---
 
@@ -900,3 +901,70 @@ only by local density.
    twelve. Both are memory.
 3. **Beacon slot assignment must be distributed and local.** The naive scheme works up to the
    pool size and then degrades sharply. [OQ-0009](#oq-0009).
+
+## OQ-0021
+### Many-to-many does not work. The system is a one-to-many broadcast tree.
+
+Found by adversarial audit and reproduced directly. **This is the largest gap in the
+project and it was invisible because every scenario ever run had exactly one talker.**
+
+### Two talkers destroy each other
+
+Seven-node woodland chain, spacing 0.9× usable range:
+
+| Talkers | Stream reach |
+|---|---|
+| n0 alone | 100 / 100 / 99 / 99 / 98 / 97 / 97 |
+| n0 **and** n6 | n0 → 100/100/97/**0/0/0/0** · n6 → **0/0/0/0**/97/100/100 |
+| n0 **and** n3 | n0 → 100/100/**0/0/0/0/0** · n3 → 0/0/100/100/99/99/99 |
+
+Neither stream crosses the other. Each reaches its own side of the chain and stops dead at
+the point where the two meet. The audit reports the same at every chain length from 2 to 9,
+**including two radios in direct range of each other with nothing in between** — both
+talking, neither heard, zero relays, zero collisions.
+
+**It is not a capacity limit.** The audit hand-placed four talkers on four distinct slot
+phases in a twelve-radio cluster and got 77–98% per stream. Four streams fit comfortably in
+a four-slot frame. The protocol simply cannot allocate them.
+
+The cause is one line: voice originates only when `slot % slots_per_frame == 0`, with no
+per-radio offset, no listen-before-talk, no backoff and no deferral. Beacons have a channel
+access rule; **voice has none at all.** This is the other half of [OQ-0009](#oq-0009) — the
+half every fix so far has left untouched, because all of them concern one voice stream
+coexisting with control traffic.
+
+### The destination address is inert
+
+Verified by inspection, and unambiguous. `dst` is written into every header and **never
+read**. It appears nowhere in `core/src/*.c` outside `frame.c`; `manet_header_validate`,
+the only function that reads it, has no caller outside the test suite;
+`manet_addr_is_multicast` has no caller anywhere. The harness never filters on it.
+
+So the addressing scheme of [ADR-0007](decisions/0007-packet-switched-frame-architecture.md)
+exists on the wire and controls nothing. Every frame is a broadcast. Private call, group
+call and talkgroup selection — baseline expectations in
+[the feature set](feature-set.md) — are not implemented in any form, and the header bits
+reserved for them are currently paying rent for nothing.
+
+### What this means for the Phase 0 gate
+
+The gate passes 5 of 5, and that result stands as measured — but it measures **one radio
+broadcasting to everybody**. It says nothing about two people talking, and nothing about
+addressed calls, because no scenario in it exercises either. The criteria came from the
+brief and the brief did not ask; that is a gap in the criteria, not a defect in the runs.
+
+### Further audit findings, not yet independently reproduced
+
+Recorded as claims pending verification, not as findings:
+
+- **The beacon slot assignment may depend on a global ordering.** `_beacon_slot_for` uses
+  `node.index`, which no real radio has. The audit reports that substituting an
+  address-derived slot breaks the clustered case in 4 of 5 seeds, with an 86% chance of two
+  of twelve radios colliding. An attempt to reproduce this did not match the gate's own
+  baseline and so proves nothing either way. **Needs a faithful test.** If it holds, several
+  results rest on a simulator artifact.
+- **No duplicate-address detection.** Two radios sharing an address are reported to be
+  mutually invisible, silently. Addresses are a global namespace administered outside the
+  mesh, which is an infrastructure dependency the brief does not acknowledge.
+- **Neighbour table overflow is first-heard-wins with no eviction.** At twenty radios in one
+  earshot group the audit reports three of them invisible to every peer.
