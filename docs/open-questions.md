@@ -191,6 +191,40 @@ Three ways to close the packing gap, none designed: pack several beacons into on
 piggyback beacon data on voice frames; or lengthen the interval and accept slower reconvergence.
 The interval itself is still inherited from OLSR rather than derived — see above.
 
+### Phase 0 findings, part two — 2026-08-21. Beacon *phase* is a hard requirement.
+
+Chasing an unexplained 79% end-to-end delivery produced the sharpest result so far, and it
+is not about how often beacons are sent but *when*.
+
+A relay must listen in the slot its upstream neighbour transmits in. A half-duplex radio
+keying up to send a beacon in that slot is **deaf**, so the payload dies at that hop and
+every node downstream loses it too. Losses compound along the chain.
+
+The harness staggered beacons by `interval / node_count`, which at the default interval
+gives a step of 16 slots. Sixteen is a multiple of the four slots per frame — so *every*
+node's beacon landed on the same phase of the voice cycle, which is precisely the phase the
+originator transmits in. Every relay went deaf in exactly the slot that mattered.
+
+Fixed by stepping the stagger with a value coprime to the frame length. End-to-end delivery
+in an 8-node chain went from **78.8% to 99.8%**, and collisions from 42 to zero. Forcing the
+bad alignment back reproduces the old figures exactly.
+
+**This is a design requirement the brief and the addendum do not state.** Where control
+traffic sits in the slot structure is not merely a capacity question — get the phase wrong
+and voice relaying degrades in a way that looks like poor coverage and would be extremely
+hard to diagnose on a hillside. Any answer to this question must specify beacon *phase*
+relative to the voice cycle, not just interval and placement.
+
+A second defect found in the same investigation, and worth recording because it very nearly
+became a false finding: the delivery metric keyed on `(source, sequence)`. The sequence
+number is 8 bits and wraps every 256 payloads — **15.4 seconds of continuous talking** — so
+long runs silently merged distinct payloads and reported the loss as a delivery failure. The
+wire format is fine; duplicate suppression ages entries out long before a wrap. The metric
+was wrong. It now attributes each receipt to the most recent origination at or before it.
+
+That 15.4-second figure is itself worth carrying into [OQ-0012](#oq-0012): it is the hard
+limit on how long duplicate-suppression state may live, and it is not generous.
+
 ## OQ-0005
 ### Slot count
 
@@ -338,8 +372,11 @@ So the header can be designed on its own merits — durability, forward compatib
 
 What remains genuinely open, now on those merits rather than on budget:
 
-- **Sequence window.** 8 bits gives ~15 s. Long enough across a partition and rejoin? Phase 0's
-  partition scenario answers this directly, and it is now the strongest constraint on the field.
+- **Sequence window.** 8 bits gives **15.4 s** of continuous talking before the space wraps —
+  measured, not estimated ([OQ-0004](#oq-0004)). Duplicate-suppression entries must therefore
+  age out well inside that, or a legitimate new payload is dropped as an echo. Whether it
+  survives a partition and rejoin is Phase 0's next question, and this is now the strongest
+  constraint on the field.
 - **TTL headroom.** 4 bits caps at exactly the brief's 15-hop maximum, with none spare. Deliberate?
 - **Frame type space.** 4 bits, 8 reserved. Permanent once radios ship.
 - **Address width and map.** `config.h` asserts `MANET_ADDR_BITS == 8` precisely so this cannot be
@@ -394,14 +431,21 @@ trusting a hop count.
 
 ### Answered — 2026-08-21. Three slots is not safe.
 
-Measured in the harness, 8-node chain, spacing at 90% of usable range, voice from one end:
+Measured in the harness, 8-node chain, spacing at 90% of usable range, voice from one end.
+**Figures below are the corrected ones** — the first run of this experiment was contaminated
+by two harness defects, both since fixed and described in [OQ-0004](#oq-0004). The finding
+survived correction and the signal is now far cleaner:
 
 | | C/I margin | Collisions | End-to-end delivery |
 |---|---|---|---|
-| **4 slots**, dense woodland | 48.5 dB | 12 | 88% |
-| **4 slots**, open moorland | 15.3 dB | 42 | 79% |
-| **3 slots**, dense woodland | 27.9 dB | 16 | 82% |
-| **3 slots**, open moorland | **9.6 dB** | **160** | **34%** |
+| **4 slots**, dense woodland | 48.5 dB | **0** | **99.8%** |
+| **4 slots**, open moorland | 15.3 dB | **0** | **99.8%** |
+| **3 slots**, dense woodland | 27.9 dB | 0 | 99.6% |
+| **3 slots**, open moorland | **9.6 dB** | **640** | **48.5%** |
+
+Four slots is now perfect in both environments, with not a single collision. Three slots is
+perfect in woodland and halves at the first relay hop in open terrain, then stays flat —
+the signature of a capture margin that fails on roughly half of attempts.
 
 The chain collapses from the second hop onward in open terrain at three slots, and the
 arithmetic says exactly why. A receiver at hop *k+1* hears its neighbour one spacing
@@ -421,10 +465,11 @@ with distance — so a distant transmitter is punished far harder than a near on
 margin widens to 48 dB. Open ground follows a plain power law with no such bonus, which
 is what leaves the margin thin. **Reuse is safest where propagation is worst.**
 
-Two things this does not settle. Absolute delivery is only 79–88% even in the
-configurations that work, which is not good enough and is not yet explained — beacon
-contention is the first suspect. And the uniform propagation model cannot express a
-blocked link, which is [OQ-0019](#oq-0019) and may make the real case worse.
+One thing this does not settle: the uniform propagation model cannot express a blocked
+link, which is [OQ-0019](#oq-0019) and may make the real case worse.
+
+The earlier concern that delivery was only 79–88% even where reuse worked is **resolved** —
+it was a harness defect, not a protocol one. See [OQ-0004](#oq-0004).
 
 ## OQ-0014
 ### Authenticating command frames on an infrastructure-free mesh

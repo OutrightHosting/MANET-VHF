@@ -46,6 +46,17 @@ class Simulation:
         self.tx_log = []
         self.collisions = 0
 
+        # Payload identity for measurement only.
+        #
+        # The wire sequence number is 8 bits and wraps every 256 payloads — 15.4 s of
+        # continuous talking at one payload per 60 ms frame. That is correct on the air
+        # (duplicate suppression ages entries out long before), but a metric keyed on
+        # (src, seq) silently merges payload 0 with payload 256 and reports the loss as
+        # a delivery failure. So originations are logged with a monotonic id and
+        # receipts are attributed to the most recent origination at or before them.
+        self.origin_log = {}   # (src, seq) -> [slots, ascending]
+        self.origin_count = 0
+
     # ------------------------------------------------------------------ helpers --
 
     @property
@@ -53,9 +64,26 @@ class Simulation:
         return [n.pos for n in self.nodes]
 
     def _beacon_slot_for(self, node):
-        """Stagger beacons so twelve radios do not all key up in the same slot."""
+        """
+        Which slot in the beacon interval this radio beacons in.
+
+        The naive stagger — interval/n_nodes apart — is a trap. A relay must LISTEN in
+        the slot its upstream neighbour transmits in, and a half-duplex radio keying up
+        to beacon in that slot is deaf. If the stagger step happens to be a multiple of
+        the slots-per-frame, every node's beacon lands on the same phase of the voice
+        cycle and every relay goes deaf in exactly the slot that matters.
+
+        So the offset is stepped by a value coprime with the frame length, spreading
+        beacons across slot phases instead of aligning them. See OQ-0004: where control
+        traffic sits in the slot structure is unspecified in the brief, and this is why
+        it cannot stay that way.
+        """
         interval = self.cfg.beacon_interval_slots
-        return (node.index * interval) // max(len(self.nodes), 1)
+        n = max(len(self.nodes), 1)
+        step = max(interval // n, 1)
+        if step % self.cfg.slots_per_frame == 0:
+            step += 1  # break the alignment with the voice cycle
+        return (node.index * step) % interval
 
     # -------------------------------------------------------------------- phases --
 
@@ -84,7 +112,9 @@ class Simulation:
         n.seq = (n.seq + 1) & 0xFF
         if n.sched.originate(pdu, slot) == 0:
             n.originated += 1
-            n.heard_payloads.setdefault((pdu.src, pdu.seq), slot)
+            self.origin_log.setdefault((pdu.src, pdu.seq), []).append(slot)
+            self.origin_count += 1
+            n.heard_payloads.setdefault(self._payload_id(pdu.src, pdu.seq, slot), slot)
 
     def _collect(self, slot):
         out = []
@@ -135,12 +165,27 @@ class Simulation:
             rx.sched.suppress(pdu.src, pdu.seq)
             return
 
-        rx.heard_payloads.setdefault((pdu.src, pdu.seq), slot)
+        pid = self._payload_id(pdu.src, pdu.seq, slot)
+        if pid is not None:
+            rx.heard_payloads.setdefault(pid, slot)
 
         # The forwarding rule: relay only for a neighbour that selected us.
         if rx.nb.should_relay_for(pdu.prev):
             if rx.sched.relay(pdu, slot, rx.addr) == 0:
                 rx.relayed += 1
+
+    def _payload_id(self, src, seq, slot):
+        """Which origination a receipt at `slot` belongs to, disambiguating seq wrap."""
+        slots = self.origin_log.get((src, seq))
+        if not slots:
+            return None
+        best = None
+        for t in slots:
+            if t <= slot:
+                best = t
+            else:
+                break
+        return None if best is None else (src, seq, best)
 
     def _housekeep(self, slot):
         if slot % self.cfg.slots_per_frame:
@@ -152,9 +197,15 @@ class Simulation:
     # ----------------------------------------------------------------------- run --
 
     def run(self, slots, voice_from=None, voice_to=None):
+        # voice_from/voice_to are ABSOLUTE slot numbers, not offsets into this call —
+        # runs are chained, so a count would silently mean the wrong thing on the
+        # second call.
+        end = self.slot + slots
+        if voice_to is None:
+            voice_to = end
         for _ in range(slots):
             slot = self.slot
-            active = (voice_from is not None and voice_from <= slot < (voice_to or slots))
+            active = (voice_from is not None and voice_from <= slot < voice_to)
             self._schedule_beacons(slot)
             self._schedule_voice(slot, active)
             txs = self._collect(slot)
@@ -185,7 +236,7 @@ class Simulation:
             return {}
         out = {}
         for n in self.nodes:
-            got = sum(1 for (s, _q) in n.heard_payloads if s == src_addr)
+            got = sum(1 for pid in n.heard_payloads if pid[0] == src_addr)
             out[n.index] = got / sent
         return out
 
@@ -193,6 +244,7 @@ class Simulation:
         """Slots from origination to first decode, per node."""
         origin = self.nodes[self.talker]
         first = {k: v for k, v in origin.heard_payloads.items() if k[0] == src_addr}
+        # k is (src, seq, origination_slot)
         out = {}
         for n in self.nodes:
             deltas = [n.heard_payloads[k] - first[k]
