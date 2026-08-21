@@ -259,8 +259,16 @@ class Simulation:
         # without them. If the best relay fails, the next one covers a slot later.
         if rx.nb.should_relay(pdu.prev):
             rank = (255 - min(quality, 255)) // 96      # 0, 1 or 2
-            if rx.sched.relay(pdu, slot + rank, rx.addr) == 0:
-                rx.relayed += 1
+
+            # If the chosen slot already holds another payload of equal priority the
+            # scheduler refuses, and a refused relay is a silently dropped one — the
+            # frame simply stops there and everyone downstream loses it. Measured at ~80%
+            # loss on a hop whose relay gate was wide open. Try the next slots instead;
+            # arriving a slot late is worth far more than not arriving.
+            for attempt in range(rank, rank + 4):
+                if rx.sched.relay(pdu, slot + attempt, rx.addr) == 0:
+                    rx.relayed += 1
+                    break
 
     def _payload_id(self, src, seq, slot):
         """Which origination a receipt at `slot` belongs to, disambiguating seq wrap."""

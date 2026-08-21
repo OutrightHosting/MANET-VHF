@@ -26,7 +26,7 @@ DEPS     := $(CORE_OBJ:.o=.d) $(TEST_OBJ:.o=.d) $(ARM_OBJ:.o=.d)
 
 ARM_CC   := arm-none-eabi-gcc
 
-.PHONY: all test test-3slot budget freestanding arm arm-build arm-check arm-size trace sim sim-lib reuse clean
+.PHONY: FORCE all test test-3slot budget freestanding arm arm-build arm-check arm-size trace sim sim-lib reuse clean
 
 all: test
 
@@ -165,7 +165,14 @@ endif
 # points are exported, so the core's internals stay internal.
 sim-lib: $(SHLIB)
 
-$(SHLIB): $(CORE_SRC) sim/bridge.c $(wildcard core/include/manet/*.h)
+# Rebuild when the FLAGS change, not just the sources. Without this a sweep over
+# EXTRA_CFLAGS silently measures whatever library happened to be built last.
+$(BUILD)/.cflags: FORCE
+	@mkdir -p $(@D)
+	@echo '$(CFLAGS)' | cmp -s - $@ || echo '$(CFLAGS)' > $@
+FORCE:
+
+$(SHLIB): $(CORE_SRC) sim/bridge.c $(wildcard core/include/manet/*.h) $(BUILD)/.cflags
 	@mkdir -p $(@D)
 	$(CC) $(CSTD) $(WARN) $(INC) $(FREE) $(EXTRA_CFLAGS) \
 	    -fPIC -shared -fvisibility=hidden -O2 -o $@ $(CORE_SRC) sim/bridge.c

@@ -218,6 +218,12 @@
 #define MANET_DEDUP_DEPTH 32u
 #endif
 
+/* Link quality below which a radio treats itself as being at the edge of the sender's
+ * reach, and relays even when pruning says it adds no coverage. See mpr.c. */
+#ifndef MANET_FRONTIER_QUALITY
+#define MANET_FRONTIER_QUALITY 250u
+#endif
+
 /* Largest PDU that can ride in one slot: everything on air except the sync word.
  * Header and FEC are carried inside this. */
 #define MANET_MAX_PDU_BITS  (MANET_SLOT_ONAIR_BITS - MANET_SYNC_BITS)

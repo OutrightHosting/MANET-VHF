@@ -19,7 +19,7 @@ yet in any of them.
 | [OQ-0006](#oq-0006) | VHF Mid Band or High Band | Ofcom enquiry | Nothing technical | Open |
 | [OQ-0007](#oq-0007) | Encryption | Phase 3 | BOM, key management UX | Open |
 | [OQ-0008](#oq-0008) | In-house or contracted development | Commercial | Schedule and cost | Open |
-| [OQ-0009](#oq-0009) | Channel access — there is no mechanism at all | **Phase 0** | **BLOCKING.** The mesh cannot maintain itself while carrying voice | **Open, blocking** |
+| [OQ-0009](#oq-0009) | Channel access — beacons defer, relays are receiver-decided and staggered | Phase 1 | Simultaneous-PTT arbitration still unspecified | Open — no longer blocking |
 | [OQ-0010](#oq-0010) | RX→TX turnaround budget on a half-duplex transceiver | Phase 1 | Guard interval, therefore payload, therefore OQ-0002 | Open |
 | [OQ-0011](#oq-0011) | ~~Is full OLSR topology-control dissemination needed at all?~~ | — | — | **Closed** — TC stays |
 | [OQ-0012](#oq-0012) | Header field widths and total header size | **Phase 0** | ~~OQ-0002~~; the header format is forever | Open — no longer blocks OQ-0002 |
@@ -398,6 +398,42 @@ At twelve radios and a 132-slot interval those cannot both hold: 1-in-32 gives f
 for twelve radios. They reconcile by **lengthening the beacon interval** so that sparse
 reservations still yield one slot per radio — 1 in 32 over a 384-slot interval gives twelve.
 That trades reconvergence speed for airtime and is untested.
+
+### Resolved for the voice path — 2026-08-21. Phase 0 gate passes 5/5.
+
+Worst-node delivery under movement went from 61.5% to **96.8%**, mean to 98.6%, with the
+clustered case still relaying nothing and partition recovering fully in 6 s.
+
+Four changes, in the order they mattered:
+
+1. **Beacons defer to voice.** Listen-before-speak, bounded so a radio cannot let its
+   neighbours age it out mid-call. Fixed the clustered case outright.
+2. **The relay decision moved from sender-told to receiver-computed.** Being *told* you are
+   a relay requires a beacon, and beacons are exactly what cannot get through while someone
+   is talking — so a radio that missed one did not relay, and one closed gate blacked out
+   the whole chain downstream.
+3. **Candidate relays staggered by link quality.** Receiver-decided relaying has a weakness
+   sender-decided MPR does not: every candidate reaches the same conclusion in the same slot
+   and they all fire together, so passive acknowledgement cannot help. Ranking on link
+   quality means the strongest goes first and the others cancel — and if it fails, the next
+   covers a slot later, which sender-decided selection cannot do at all.
+4. **A radio at the frontier relays even when pruning says it needn't.** This was the one
+   that mattered. Pruning alone stops the network dead where radios are packed closely:
+   every candidate correctly concludes it adds no coverage, so nobody relays. Measured as a
+   chain delivering 100% for six hops and 2% at the seventh, gate closed at a radio 168 m
+   from its upstream in 528 m of range. A radio can tell it is at the edge of the sender's
+   reach from its own link quality alone, without knowing anything about the other
+   candidates, and the edge is exactly where the frame needs carrying.
+
+Threshold swept: below 128 the frontier rule barely fires and worst-case sits at 70%; at 250
+it is 90–97% across every push-to-talk pattern tested; at 255 (relay always) it is no better,
+so the pruning is still doing useful work in the dense case where it matters.
+
+### What still has no mechanism
+
+Simultaneous PTT. Two leaders pressing transmit at the same moment is still unarbitrated —
+everything above concerns one voice stream coexisting with control traffic. That is the
+remaining half of this question and it is [OQ-0017](#oq-0017)'s territory too.
 
 ### What a mechanism has to provide
 

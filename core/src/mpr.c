@@ -273,5 +273,23 @@ bool manet_mpr_should_relay(const manet_nb_table_t *t, manet_addr_t from)
             return true;
         }
     }
+
+    /*
+     * Pruning alone has a failure mode that stops the network dead. Where radios are
+     * packed closely, every candidate correctly concludes it adds no coverage — each
+     * one's neighbours are already the sender's neighbours — so nobody relays and the
+     * frame goes no further. Measured: a chain delivering 100% for six hops and 2% at
+     * the seventh, with the gate closed at a radio 168 m from its upstream in 528 m of
+     * range.
+     *
+     * The escape is that a radio at the EDGE of the sender's reach is the one most
+     * likely to see past it, and it can tell it is there from its own link quality
+     * without knowing anything about the other candidates. So a weak link relays even
+     * when pruning says it need not. Costs an occasional redundant transmission, which
+     * duplicate suppression absorbs; buys the frontier hop, which nothing else does.
+     */
+    if (e->quality < MANET_FRONTIER_QUALITY) {
+        return true;
+    }
     return false;
 }
