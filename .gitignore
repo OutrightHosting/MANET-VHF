@@ -27,3 +27,6 @@ sim/out/
 .vscode/
 .idea/
 .DS_Store
+
+# Agent scratch — worktrees, session state
+.claude/
