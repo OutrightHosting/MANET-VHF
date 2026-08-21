@@ -13,6 +13,8 @@ yet in any of them.
 |---|---|---|---|---|
 | [OQ-0001](#oq-0001) | Achievable gross bit rate at 25 kHz on CC1200 | Phase 1 | **THE critical path** — with the vocoder, decides FEC | **Open, blocking** |
 | [OQ-0024](#oq-0024) | Acquisition preamble — 56 bit-times, or 128 if the LO free-runs | Phase 1 | Reach. 3 hops vs 12 | **Open, blocking** |
+| [OQ-0025](#oq-0025) | PA chain from the CC1200's +16 dBm to 5 W | Phase 2 | Range. The sim assumes 37 dBm and the modem gives 16 | Open |
+| [OQ-0026](#oq-0026) | TX duty cycle — measured 20% worst node, vs a handheld's 5% | Phase 2 | Thermal, battery, **and who dies first** | Open |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1188,3 +1190,81 @@ of preamble, and the figure returns to about 128 — which puts the network back
 
 Bench test B in the budget document decides it: PER against injected frequency offset with
 `FOC_EN=0`. Flat to ±200 Hz confirms 56; narrower than ±150 Hz means 128.
+
+## OQ-0025
+### The PA chain — +16 dBm of modem, 5 W of requirement
+
+The CC1200 is a transceiver, not a transmitter. Its integrated PA reaches about **+16 dBm
+(40 mW)**. Every figure in the simulator assumes **+37 dBm (5 W)** — `LinkBudget.tx_dbm`
+in [sim/manet/radio.py](../sim/manet/radio.py). That is a 21 dB gap, and the brief has
+always carried it: Phase 2 reads *"Custom PCB, PA to 5 W"*.
+
+**It is not a design problem, it is a design job.** The convenient part is that +16 dBm is
+close to the drive level VHF RF power modules are specified for — the Mitsubishi RA07M1317M
+class (135–175 MHz, 7 W, 12.5 V) wants roughly 50 mW in for full output, so the chain is
+plausibly modem → module → harmonic filter → T/R switch, with no discrete driver stage.
+Confirm the drive figure and the P1dB back-off against the actual datasheet before
+committing; 4FSK is constant-envelope so the module can run near compression, which is what
+makes the efficiency numbers in [OQ-0026](#oq-0026) achievable at all.
+
+What must be settled:
+
+- **Drive and linearity.** Constant-envelope permits saturated operation. Verify the module
+  reaches 5 W from ≤ 40 mW at 155 MHz and at the top of the temperature range.
+- **Supply.** 12.5 V modules mean a 4S pack with a buck, or a 2S pack with a boost. This
+  choice sets the enclosure and the weight, for a radio carried all day by a volunteer.
+- **Ramp shaping.** The PA must be brought up and down inside the guard. EN 300 113 measures
+  adjacent-channel power *during burst transitions*; a hard key splatters. Budget 50–200 µs
+  each end against `MANET_GUARD_PERMILLE`'s 3.32 ms — comfortable, but it must be designed,
+  and it lengthens the RX→TX turnaround measured in [OQ-0010](#oq-0010).
+- **Antenna switching.** Every node relays, so T/R switching happens on almost every slot
+  boundary, not on PTT. Switch insertion loss is charged twice per hop and the switch's own
+  settling adds to the same turnaround.
+
+**Useful side effect for Phase 1.** The bench EVMs run at 40 mW. At the woodland exponent of
+2.97 that is about **1/5 of the product's range**, so a four-hop chain that needs ~5 km at
+5 W fits in roughly **1 km** at bench power. Multi-hop behaviour is testable in a single
+large field. The protocol does not know the difference.
+
+## OQ-0026
+### TX duty cycle — the price of everyone being a relay
+
+**Measured, not assumed.** Running the three-groups-over-a-hill scenario with a single talker
+and counting bursts per node from `Simulation.tx_log`:
+
+| | Median node | Worst node |
+|---|---|---|
+| 3 groups over a hill, 12 nodes | 4.0% | **20.4%** |
+| 8 groups strung out, 32 nodes | 2.0% | 17.4% |
+
+A commercial handheld is specified to a **5/5/90** duty cycle — 5% transmit, 5% receive, 90%
+standby. The pivotal relay in this network transmits at **four times that**, sustained, and
+does so *while nobody is pressing its PTT*. This is the one place where "every handset is
+also a relay" costs something a conventional radio never pays.
+
+At 5 W RF and a module efficiency somewhere in 25–45%:
+
+| | η=25% | η=45% |
+|---|---|---|
+| PA draw, worst node | 4.08 W | 2.27 W |
+| Runtime, 4S 3.0 Ah pack (44 Wh), +1.5 W baseband | **7.9 h** | 11.7 h |
+| Runtime, 2S 3.5 Ah pack (26 Wh) | **4.7 h** | 6.9 h |
+
+Two consequences, and the second is the interesting one:
+
+1. **Thermal.** Roughly 3–4 W dissipated continuously inside a hand-held plastic enclosure,
+   at an ambient that may be a July hillside. Measure junction temperature at 20% duty before
+   choosing the module; derating to 3 W RF is preferable to a thermal shutdown mid-incident.
+
+2. **The node everyone depends on is the node whose battery dies first.** Relay load is not
+   spread evenly — it is concentrated on whoever is topographically pivotal, which is exactly
+   the node whose loss partitions the network. Nothing in the current design notices this.
+   The fix is available and cheap: `manet_nama_priority()` already computes a per-slot
+   election value, and a remaining-battery term folded into it would rotate relay duty toward
+   fuller radios while leaving the election's correctness properties intact. It needs care —
+   the priority must stay computable by every neighbour from information they already hold,
+   which means battery state has to ride in the beacon. That is a beacon field, a config
+   constant, and a term in one expression.
+
+   **Not yet built.** Raised here because it changes what a beacon carries, and beacon layout
+   should not be settled twice.

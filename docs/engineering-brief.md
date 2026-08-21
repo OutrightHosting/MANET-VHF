@@ -149,7 +149,7 @@ Codec2 3200 has been evaluated against AMBE 2400 samples and judged acceptable.
 
 | Item | Qty | Purpose |
 |---|---|---|
-| TI CC1200 evaluation modules | 4 | Sub-1 GHz transceiver, 4FSK, narrowband 12.5/25 kHz support, good sensitivity, well documented |
+| TI CC1200 evaluation modules | 4 | Sub-1 GHz transceiver, 4FSK, narrowband 12.5/25 kHz support, good sensitivity, well documented. **Modem only — +16 dBm, so the bench runs ~21 dB down on the product and at roughly 1/5 its range.** The 5 W PA chain is Phase 2, [OQ-0025](open-questions.md#oq-0025) |
 | STM32F4-class dev boards | 4 | MCU. Codec2 runs on F4 — proven by the M17 project |
 | Attenuators, dummy loads, SMA cables, splitter | — | Bench work with no radiation |
 | TinySA Ultra or equivalent | 1 | Basic spectrum measurement |
