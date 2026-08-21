@@ -135,3 +135,46 @@ def latency(hops=6):
     sim.run(1200, voice_from=settle)
     lat = sim.latency_slots(sim.nodes[0].addr)
     return {i: (v, v * CONFIG.slot_us / 1000.0) for i, v in sorted(lat.items())}
+
+
+def multi_talker(hops=7, talkers=(0, 3), slots=1500):
+    """
+    Several people talking at once.
+
+    Absent from the brief's criteria and therefore untested for the whole of Phase 0,
+    which is how a total failure went unnoticed: every scenario had exactly one talker,
+    and with one talker the design looked correct.
+    """
+    from ..manet.core import VOICE, Pdu
+
+    class Multi(Simulation):
+        def _schedule_voice(self, slot, active):
+            if not active:
+                return
+            for ti in talkers:
+                n = self.nodes[ti]
+                if slot % self.cfg.slots_per_frame != self.voice_phase(n):
+                    continue
+                pdu = Pdu(src=n.addr, prev=n.addr, dst=0xC0, type=VOICE, seq=n.seq & 0xFF)
+                n.seq = (n.seq + 1) & 0xFF
+                if n.sched.originate(pdu, slot) == 0:
+                    n.originated += 1
+                    self.origin_log.setdefault((pdu.src, pdu.seq), []).append(slot)
+                    n.heard_payloads.setdefault(
+                        self._payload_id(pdu.src, pdu.seq, slot), slot)
+
+    reach = usable_range_m(WOOD, BUDGET)
+    pos = [(i * 0.9 * reach, 0.0) for i in range(hops)]
+    sim = Multi(pos, WOOD, BUDGET, talker=talkers[0])
+    settle = CONFIG.beacon_interval_slots * 4
+    sim.run(settle)
+    sim.run(slots - settle, voice_from=settle)
+
+    out = {}
+    for ti in talkers:
+        d = sim.delivery(sim.nodes[ti].addr)
+        # does this stream reach the far side of every other talker?
+        others = [t for t in talkers if t != ti]
+        out[ti] = {"profile": [d.get(i, 0.0) for i in range(hops)],
+                   "crosses": min(d.get(t, 0.0) for t in others)}
+    return out

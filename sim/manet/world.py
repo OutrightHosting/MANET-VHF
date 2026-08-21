@@ -33,6 +33,13 @@ class Node:
         # it must listen in. It may not beacon in either.
         self.voice_tx_phase = None
         self.voice_rx_phase = None
+        # Every phase on which this radio has recently heard voice. It must keep its ears
+        # free on all of them, not only the most recent, or a radio carrying one
+        # conversation goes deaf to a second.
+        self.rx_phases = {}
+        # Which ORIGIN each receive phase carried. Hearing several neighbours is normal
+        # and not a reason to protect ears; hearing two different conversations is.
+        self.rx_sources = {}
 
         # Channel access state. A radio that can hear a stream in progress holds its
         # beacon rather than keying up over it.
@@ -171,13 +178,29 @@ class Simulation:
             if n.sched.originate(pdu, slot) == 0:
                 n.beacons_sent += 1
 
+    def voice_phase(self, node):
+        """
+        Which slot of the frame this radio starts a transmission in.
+
+        Derived from its own address, so nothing assigns it and nothing has to be
+        negotiated. Without it every talker originates in slot 0 of every frame, and two
+        people speaking at once wipe each other out completely — measured as both streams
+        reaching their own side of a chain and neither crossing to the other.
+
+        Addresses are mixed before use. A plain odd multiplier is no good — times five
+        modulo four is just modulo four, so every odd address lands on the same two
+        phases. A multiplicative hash spreads them properly.
+        """
+        h = (node.addr * 0x9E3779B1) & 0xFFFFFFFF
+        return (h >> 16) % self.cfg.slots_per_frame
+
     def _schedule_voice(self, slot, active):
         if not active:
             return
-        # One Codec2 payload per frame, so a new burst begins at slot 0 of each frame.
-        if slot % self.cfg.slots_per_frame != 0:
-            return
         n = self.nodes[self.talker]
+        # One Codec2 payload per frame, beginning at this radio's own phase.
+        if slot % self.cfg.slots_per_frame != self.voice_phase(n):
+            return
         pdu = Pdu(src=n.addr, prev=n.addr, dst=0xC0, type=VOICE,
                   seq=n.seq & 0xFF, prio=PRIO_VOICE)
         n.seq = (n.seq + 1) & 0xFF
@@ -235,6 +258,8 @@ class Simulation:
             return
 
         rx.voice_rx_phase = slot % self.cfg.slots_per_frame
+        rx.rx_phases[rx.voice_rx_phase] = slot
+        rx.rx_sources[rx.voice_rx_phase] = pdu.src
         rx.last_voice_slot = slot
 
         if not rx.dedup.check(pdu.src, pdu.seq, slot):
@@ -265,7 +290,26 @@ class Simulation:
             # frame simply stops there and everyone downstream loses it. Measured at ~80%
             # loss on a hop whose relay gate was wide open. Try the next slots instead;
             # arriving a slot late is worth far more than not arriving.
-            for attempt in range(rank, rank + 4):
+            # Do not transmit in a phase this radio needs its ears for. A relay goes out
+            # in the slot right after reception, so a radio carrying one conversation
+            # transmits in exactly the phase a second conversation arrives on — and goes
+            # deaf to it. Measured at a mid-chain radio: one stream heard 227 times and
+            # relayed every time, the other heard 27 times out of 243.
+            #
+            # Four slots leaves room for two conversations: two phases listening, two
+            # transmitting.
+            spf = self.cfg.slots_per_frame
+            fresh = self.cfg.slots_per_frame * 2
+            recent = {ph for ph, seen in rx.rx_phases.items() if (slot - seen) < fresh}
+            # Protect ears only when a second CONVERSATION is present. Hearing several
+            # neighbours on different phases is ordinary — they are relaying the same
+            # talker — and blocking the next slot for that costs the pipelining rule far
+            # more than the deafness it avoids.
+            sources = {rx.rx_sources.get(ph) for ph in recent}
+            busy = (recent - {slot % spf}) if len(sources) > 1 else set()
+            for attempt in range(rank, rank + spf * 2):
+                if ((slot + attempt + 1) % spf) in busy:
+                    continue
                 if rx.sched.relay(pdu, slot + attempt, rx.addr) == 0:
                     rx.relayed += 1
                     break
@@ -353,8 +397,9 @@ class Simulation:
         return sum(n.relayed for n in self.nodes)
 
     def delivery(self, src_addr):
-        """Fraction of the talker's payloads each node actually received."""
-        sent = self.nodes[self.talker].originated
+        """Fraction of that source's payloads each node actually received."""
+        origin = next((n for n in self.nodes if n.addr == src_addr), None)
+        sent = origin.originated if origin else 0
         if sent == 0:
             return {}
         out = {}

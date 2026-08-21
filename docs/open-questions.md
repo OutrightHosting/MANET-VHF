@@ -31,7 +31,7 @@ yet in any of them.
 | [OQ-0018](#oq-0018) | ~~The header cannot express the previous hop~~ | — | — | **Closed** — field added |
 | [OQ-0019](#oq-0019) | Uniform-environment propagation cannot express a blocked link | **Phase 0** | The confidence attached to OQ-0013 | Open |
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
-| [OQ-0021](#oq-0021) | Many-to-many does not work; `dst` is inert | **Phase 0** | **BLOCKING.** It is a broadcast tree, not a MANET | **Open, blocking** |
+| [OQ-0021](#oq-0021) | Many-to-many — streams now cross; `dst` still inert | **Phase 0** | Addressed calls; concurrent-stream quality | Open — no longer total failure |
 
 ---
 
@@ -932,6 +932,44 @@ per-radio offset, no listen-before-talk, no backoff and no deferral. Beacons hav
 access rule; **voice has none at all.** This is the other half of [OQ-0009](#oq-0009) — the
 half every fix so far has left untouched, because all of them concern one voice stream
 coexisting with control traffic.
+
+### Fixed — 2026-08-21. Streams now cross; quality is partial.
+
+Two changes, both decided from local knowledge with nothing negotiated.
+
+**Talkers originate on a phase derived from their own address.** Every talker previously
+began on slot 0 of every frame, so two people speaking at once occupied the same slot for
+the whole length of their transmissions. A multiplicative hash of the radio's own address
+spreads them across the frame — note a plain odd multiplier does not work, since times five
+modulo four is just modulo four and every odd address lands on the same two phases.
+
+**A radio carrying two conversations keeps an ear free.** A relay goes out in the slot right
+after reception, so a radio relaying one stream transmits in exactly the phase a second
+stream arrives on, and is deaf to it. Diagnosed at a mid-chain radio which heard one stream
+227 times out of 243 and relayed every one, while hearing the other **27** times.
+
+The discrimination that makes this work without cost: **hearing several neighbours is not
+the same as hearing several conversations.** In a chain a radio routinely hears two or three
+neighbours relaying the *same* talker, and protecting ears for that blocks the pipelining
+rule and costs single-talker delivery about ten points. Keying the rule on the number of
+distinct *origins* rather than the number of busy phases gives both.
+
+Seven-node chain, talkers at n0 and n3:
+
+| | Reach |
+|---|---|
+| n0 → | 100 / 86 / 43 / 42 / 41 / 41 / **41** |
+| n3 → | **60** / 61 / 99 / 100 / 99 / 98 / 98 |
+
+Against zero crossing in either direction before. Four simultaneous talkers likewise all
+reach across the chain. Single-talker delivery is unchanged at 96.8% worst and the Phase 0
+gate still passes 5 of 5.
+
+**Not finished.** Two talkers at opposite ends of a long chain still barely cross — 5–8%
+through the meeting point — and concurrent-stream quality of 41–60% is well short of what
+voice needs. A conversation between two people at the two ends of a dispersed group is
+exactly the case the product exists for. `multi_talker` in `sim/scenarios/gate.py` now
+covers this so it cannot go untested again.
 
 ### The destination address is inert
 
