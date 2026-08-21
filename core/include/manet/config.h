@@ -88,8 +88,20 @@
 #define MANET_SEQ_BITS 8u
 #endif
 
+/*
+ * 5 bits, 31 hops. Sized so TTL is never what stops the network.
+ *
+ * 4 bits caps at 15 hops, and an earlier note here argued that was fine because voice
+ * stops being conversational around there anyway. That reasoning was wrong: latency
+ * degrades gradually, and at the far end of a long chain the alternative to a slow
+ * conversation is no contact at all. Extending reach is the entire point of a mesh, so
+ * the loop-prevention counter must not be the thing that truncates it.
+ *
+ * Not larger, though: a looping frame at 63 hops wastes nearly a second of airtime
+ * before it dies, and every bit here is a bit of FEC (OQ-0002).
+ */
 #ifndef MANET_TTL_BITS
-#define MANET_TTL_BITS 4u
+#define MANET_TTL_BITS 5u
 #endif
 
 #ifndef MANET_PRIO_BITS
@@ -186,8 +198,13 @@
 #endif
 
 /* Miss this many beacons and the neighbour is gone. OLSR uses 3. */
+/*
+ * OLSR uses 3. Raised to 8 because beacons now defer to voice: a radio carrying a
+ * transmission holds its beacon, and the hold time must outlast that or its neighbours
+ * age it out mid-call. Costs a slower response to someone genuinely walking away.
+ */
 #ifndef MANET_NB_HOLD_MULTIPLE
-#define MANET_NB_HOLD_MULTIPLE 3u
+#define MANET_NB_HOLD_MULTIPLE 8u
 #endif
 
 /* The group this is actually for. Used only to compute beacon overhead. */

@@ -34,6 +34,11 @@ class Node:
         self.voice_tx_phase = None
         self.voice_rx_phase = None
 
+        # Channel access state. A radio that can hear a stream in progress holds its
+        # beacon rather than keying up over it.
+        self.last_voice_slot = None
+        self.beacon_deferrals = 0
+
         # metrics
         self.heard_payloads = {}   # (src, seq) -> slot first decoded
         self.relayed = 0
@@ -119,11 +124,45 @@ class Simulation:
 
     # -------------------------------------------------------------------- phases --
 
+    # How long after hearing voice a radio treats the channel as occupied, and how many
+    # beacons it may hold before sending one anyway. Two frames is enough to cover a
+    # relay chain passing through; six deferrals is ~12 s, inside the neighbour hold
+    # time, so a held beacon can never age a link out.
+    QUIET_FRAMES = 2
+    MAX_DEFERRALS = 6
+
     def _schedule_beacons(self, slot):
+        """
+        Beacons defer to voice.
+
+        This is the channel access rule the brief does not contain, and without it the
+        two traffic classes destroy each other. Priority in Addendum 01 §5 arbitrates
+        inside one radio's scheduler; nothing arbitrates between radios, so a beacon and
+        a voice burst key up in the same slot and neither survives.
+
+        The rule: a radio that has transmitted or received voice within the last couple
+        of frames treats the channel as occupied and holds its beacon. It is the slotted
+        equivalent of listening before speaking, and it works because voice is
+        push-to-talk and bursty — the channel is idle most of the time.
+
+        The bounded deferral matters as much as the deferral. A radio that held its
+        beacon indefinitely through a long transmission would let its neighbours age it
+        out, so after MAX_DEFERRALS it beacons regardless and accepts one collision.
+        """
         interval = self.cfg.beacon_interval_slots
+        quiet = self.QUIET_FRAMES * self.cfg.slots_per_frame
+
         for n in self.nodes:
             if slot % interval != self._beacon_slot_for(n):
                 continue
+
+            busy = (n.last_voice_slot is not None
+                    and (slot - n.last_voice_slot) < quiet)
+            if busy and n.beacon_deferrals < self.MAX_DEFERRALS:
+                n.beacon_deferrals += 1
+                continue
+            n.beacon_deferrals = 0
+
             n.mpr.select(n.nb)
             n.beacon_entries = n.nb.beacon(n.mpr.addrs)
             pdu = Pdu(src=n.addr, prev=n.addr, dst=BROADCAST, type=BEACON,
@@ -156,6 +195,7 @@ class Simulation:
             if pdu is not None:
                 if pdu.type in (VOICE,):
                     n.voice_tx_phase = slot % self.cfg.slots_per_frame
+                    n.last_voice_slot = slot
                 out.append((n.index, (pdu, n.beacon_entries if pdu.type == BEACON else None)))
         return out
 
@@ -195,6 +235,7 @@ class Simulation:
             return
 
         rx.voice_rx_phase = slot % self.cfg.slots_per_frame
+        rx.last_voice_slot = slot
 
         if not rx.dedup.check(pdu.src, pdu.seq, slot):
             # An echo. Someone else already relayed it, so ours is redundant —

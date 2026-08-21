@@ -11,11 +11,11 @@
  *   dst  8  0xC5  1100 0101
  *   type 4  0x0   0000
  *   seq  8  0x9A  1001 1010
- *   ttl  4  0xF   1111
+ *   ttl  5  0x0F  01111
  *   prio 2  0x1   01
  *
- * MSB first:          00010010 00110100 11000101 0000 10011010 1111 01
- * Grouped into bytes: 0x12 0x34 0xC5 0x09 0xAF then '01' in the top two bits of [5].
+ * MSB first:          00010010 00110100 11000101 0000 10011010 01111 01
+ * Grouped into bytes: 0x12 0x34 0xC5 0x09 0xA7 then '101' in the top three bits of [5].
  */
 static void test_golden_vector(void)
 {
@@ -31,8 +31,8 @@ static void test_golden_vector(void)
     CHECK_EQ(buf[1], 0x34);
     CHECK_EQ(buf[2], 0xC5);
     CHECK_EQ(buf[3], 0x09);
-    CHECK_EQ(buf[4], 0xAF);
-    CHECK_EQ(buf[5], 0x40);
+    CHECK_EQ(buf[4], 0xA7);
+    CHECK_EQ(buf[5], 0xA0);
 
     /* One-filled: the same 34 bits are written, and the trailing six are untouched.
      * This is what lets a caller pack a header into a buffer that already holds
@@ -43,8 +43,8 @@ static void test_golden_vector(void)
     CHECK_EQ(buf[1], 0x34);
     CHECK_EQ(buf[2], 0xC5);
     CHECK_EQ(buf[3], 0x09);
-    CHECK_EQ(buf[4], 0xAF);
-    CHECK_EQ(buf[5], 0x7F);
+    CHECK_EQ(buf[4], 0xA7);
+    CHECK_EQ(buf[5], 0xBF);
     CHECK_EQ(buf[6], 0xFF);
 }
 
@@ -227,8 +227,9 @@ static void test_ttl(void)
     CHECK_EQ(h.ttl, 0);
     CHECK(!manet_header_ttl_decrement(NULL));
 
-    /* The configured TTL width must reach the brief's stated 15-hop maximum. */
-    CHECK_EQ(MANET_TTL_MAX, 15);
+    /* TTL must not be what truncates the network — 31 hops, well past the point where
+     * latency degrades the conversation. See config.h. */
+    CHECK_EQ(MANET_TTL_MAX, 31);
 }
 
 static void test_default_priority(void)

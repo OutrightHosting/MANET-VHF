@@ -45,8 +45,14 @@ def cluster(n=12, seconds=90):
     }
 
 
-def dispersal(n=12, cycles=2, samples=60):
-    """The group stretches out and gathers up again while someone is talking."""
+def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0):
+    """
+    The group stretches out and gathers up again while someone is talking.
+
+    Voice is push-to-talk and bursty — someone transmits for a few seconds, then the
+    channel is idle. Continuous transmission is not an operational case, and testing
+    against it starves the control plane in a way real use never would.
+    """
     mob = DispersingGroup(n, spread_min=120.0, spread_max=3000.0, period_s=240.0)
     sim = Simulation(mob, WOOD, BUDGET, talker=0)
     settle = CONFIG.beacon_interval_slots * 4
@@ -54,11 +60,15 @@ def dispersal(n=12, cycles=2, samples=60):
 
     total = int(cycles * 240.0 / (CONFIG.slot_us / 1e6))
     step = max(total // samples, 1)
+    talk = int(talk_s / (CONFIG.slot_us / 1e6))
+    cycle = talk + int(gap_s / (CONFIG.slot_us / 1e6))
     trace, converged_samples = [], 0
     done = 0
     while done < total:
         chunk = min(step, total - done)
-        sim.run(chunk, voice_from=settle, voice_to=settle + total)
+        # PTT: transmitting for talk_s out of every cycle, idle in between.
+        base = settle + ((sim.slot - settle) // cycle) * cycle
+        sim.run(chunk, voice_from=base, voice_to=base + talk)
         done += chunk
         t = _secs(sim.slot) - _secs(settle)
         spread = mob.spread_at(t)
