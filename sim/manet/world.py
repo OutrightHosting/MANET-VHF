@@ -498,6 +498,30 @@ class Simulation:
             frontier = nxt
         return len(seen)
 
+    def depth_from(self, index):
+        """
+        Hop depth of the furthest node from `index` over symmetric links.
+
+        Exists because `reachable_from` counts nodes and says nothing about how far
+        apart they are — a fully-connected cluster and a five-hop chain both report 12.
+        The gate needs the difference, and did not have it.
+        """
+        seen = {self.nodes[index].addr}
+        frontier = [self.nodes[index]]
+        by_addr = {n.addr: n for n in self.nodes}
+        depth = 0
+        while frontier:
+            nxt = []
+            for n in frontier:
+                for a in n.nb.symmetric():
+                    if a not in seen and a in by_addr:
+                        seen.add(a)
+                        nxt.append(by_addr[a])
+            if nxt:
+                depth += 1
+            frontier = nxt
+        return depth
+
     def relay_total(self):
         return sum(n.relayed for n in self.nodes)
 

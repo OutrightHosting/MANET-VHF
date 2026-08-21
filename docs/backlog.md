@@ -25,17 +25,17 @@ ERP limits, and which VHF band the transceiver is characterised for
 
 ## P0 — The instrument is broken. Nothing below is trustworthy until this is fixed.
 
-- [ ] **B-01 · Gate Q1 never goes multi-hop.** `dispersal()` stretches the group to 3000 m
+- [x] **B-01 · Gate Q1 never goes multi-hop.** ✅ **Fixed.** Stretch is now `DISPERSAL_HOPS × RANGE_M` = 14.8 km, reaching **4 hops** deep, and the criterion fails if depth < 2. `dispersal()` stretches the group to 3000 m
       ([gate.py:48](../sim/scenarios/gate.py)) against a 4416 m woodland range, so every node
       is one hop from every other at every sample. The mobility criterion cannot fail.
       **Done when:** `spread_max` forces ≥ 3 hops at maximum stretch and the test still
       passes — or fails honestly. *Hours.*
-- [ ] **B-02 · Gate Q5 never partitions.** `SplinterRejoin(separation_m=4000.0)`
+- [x] **B-02 · Gate Q5 never partitions.** ✅ **Fixed.** Separation is now `PARTITION_MARGIN × RANGE_M + jitter` = 7.4 km; halves genuinely split to 6/12 each, and the criterion fails if they never lose contact. `SplinterRejoin(separation_m=4000.0)`
       ([gate.py:96](../sim/scenarios/gate.py)) against 4416 m range. The log reports 12/12
       reachable while "apart", and then reports reconvergence from a split that never
       happened. **Done when:** the halves genuinely lose contact and the reported
       reconvergence time is real. *Hours.*
-- [ ] **B-03 · Re-read every "gate 5/5" claim made since terrain landed.** Two of five
+- [x] **B-03 · Re-read every "gate 5/5" claim made since terrain landed.** ✅ **Done.** The claims were unsupported when made but survive the corrected test: 5/5 still, now on criteria that can fail. Two of five
       criteria could not fail. Correct anything downstream that leaned on them. *Hours.*
 
 ## P1 — Lead time. Hardware procurement; order early because it just waits.

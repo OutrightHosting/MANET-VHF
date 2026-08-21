@@ -20,6 +20,26 @@ from ..manet.world import Simulation
 WOOD = ENVIRONMENTS["woodland"]
 BUDGET = LinkBudget()
 
+# EVERY GEOMETRIC PARAMETER BELOW IS DERIVED FROM THIS, NOT HARDCODED.
+#
+# Both the mobility and partition criteria were previously written against fixed
+# distances -- 3000 m of stretch and 4000 m of separation. They were chosen when woodland
+# single-hop range was 528 m. Correcting the vegetation model (OQ-0023) took that to
+# 4416 m and the constants did not move, so for some time:
+#
+#   Q1 stretched the group to 3000 m inside a 4416 m radio horizon -> never left one hop
+#   Q5 separated the halves by 4000 m, and with +/-150 m of cluster jitter the closest
+#      cross-boundary pair sat at 3700 m -> never actually partitioned
+#
+# Neither criterion could fail, and both reported PASS for weeks. Deriving them from the
+# measured range means the next propagation change moves the test with it.
+RANGE_M = usable_range_m(WOOD, BUDGET)
+
+# Stretch far enough that the group is genuinely several hops deep at full extension.
+DISPERSAL_HOPS = 3.5
+# Separate by more than one radio horizon plus the cluster jitter at both ends.
+PARTITION_MARGIN = 1.6
+
 
 def _secs(slots):
     return slots * CONFIG.slot_us / 1e6
@@ -45,7 +65,7 @@ def cluster(n=12, seconds=90):
     }
 
 
-def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=3000.0):
+def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=None):
     """
     The group stretches out and gathers up again while someone is talking.
 
@@ -53,10 +73,11 @@ def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=300
     channel is idle. Continuous transmission is not an operational case, and testing
     against it starves the control plane in a way real use never would.
     """
-    # Spread bounded by what the frame can carry. At 50 ms slots and a 500 ms mouth-to-ear
-    # budget the network is four hops deep, and with the corrected vegetation model and
-    # exponent that is about 15 km of dispersal in woodland. Testing beyond it would measure the TTL rather
-    # than the protocol.
+    # Spread is bounded above by what the TTL can carry -- beyond that the test measures
+    # MANET_VOICE_TTL rather than the protocol -- and bounded BELOW by the radio horizon,
+    # which is the bound that was missing. DISPERSAL_HOPS * RANGE_M satisfies both.
+    if spread_max is None:
+        spread_max = DISPERSAL_HOPS * RANGE_M
     mob = DispersingGroup(n, spread_min=120.0, spread_max=spread_max, period_s=240.0)
     sim = Simulation(mob, WOOD, BUDGET, talker=0)
     settle = CONFIG.beacon_interval_slots * 4
@@ -66,7 +87,7 @@ def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=300
     step = max(total // samples, 1)
     talk = int(talk_s / (CONFIG.slot_us / 1e6))
     cycle = talk + int(gap_s / (CONFIG.slot_us / 1e6))
-    trace, converged_samples = [], 0
+    trace, converged_samples, max_depth = [], 0, 0
     done = 0
     while done < total:
         chunk = min(step, total - done)
@@ -78,7 +99,9 @@ def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=300
         spread = mob.spread_at(t)
         ok = sim.converged()
         converged_samples += 1 if ok else 0
-        trace.append((t, spread, sim.relaying_now(), sim.reachable_from(0), ok))
+        depth = sim.depth_from(0)
+        max_depth = max(max_depth, depth)
+        trace.append((t, spread, sim.relaying_now(), sim.reachable_from(0), ok, depth))
 
     d = sim.delivery(sim.nodes[0].addr)
     return {
@@ -88,12 +111,21 @@ def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=300
         "min_delivery": min(d.values()) if d else 0.0,
         "mean_delivery": sum(d.values()) / len(d) if d else 0.0,
         "relay_transmissions": sim.relay_total(),
+        # PRECONDITION. A mobility test that never leaves one hop tests nothing, and this
+        # one did not for weeks. The runner fails the criterion if this is under 2.
+        "max_hop_depth": max_depth,
+        "spread_max": spread_max,
+        "range_m": RANGE_M,
     }
 
 
-def partition(n=12, samples=60):
+def partition(n=12, samples=60, separation_m=None):
     """The group splits, goes out of contact, and comes back."""
-    mob = SplinterRejoin(n, separation_m=4000.0, out_s=90.0, away_s=120.0, back_s=90.0)
+    # Must exceed one radio horizon plus the cluster jitter at both ends, or the halves
+    # stay in contact and the test measures nothing. It did not, and they did.
+    if separation_m is None:
+        separation_m = PARTITION_MARGIN * RANGE_M + 300.0
+    mob = SplinterRejoin(n, separation_m=separation_m, out_s=90.0, away_s=120.0, back_s=90.0)
     sim = Simulation(mob, WOOD, BUDGET, talker=0)
     settle = CONFIG.beacon_interval_slots * 4
     sim.run(settle)
@@ -116,6 +148,11 @@ def partition(n=12, samples=60):
     # reachability, because a partition that "heals" to 11 of 12 has not healed — and
     # that is exactly what happens when beacon starvation leaves one radio without a
     # confirmed two-way link. See OQ-0009.
+    # PRECONDITION: were the halves ever actually out of contact? If the front could still
+    # see all twelve while "apart", nothing was partitioned and the heal time is fiction.
+    apart_reach = [ra for t, phase, ra, _rb, _ok in trace if phase == "apart"]
+    truly_split = bool(apart_reach) and max(apart_reach) <= n // 2
+
     heal, heal_partial, final_reach = None, None, 0
     for t, phase, reach_a, _reach_b, ok in trace:
         if t < rejoin_t:
@@ -126,7 +163,10 @@ def partition(n=12, samples=60):
         if ok and reach_a == n and heal is None:
             heal = t - rejoin_t
     return {"trace": trace, "heal_s": heal, "heal_partial_s": heal_partial,
-            "final_reach": final_reach, "rejoin_at_s": rejoin_t, "nodes": n}
+            "final_reach": final_reach, "rejoin_at_s": rejoin_t, "nodes": n,
+            "truly_split": truly_split,
+            "worst_reach_while_apart": max(apart_reach) if apart_reach else n,
+            "separation_m": separation_m, "range_m": RANGE_M}
 
 
 def latency(hops=4):

@@ -52,25 +52,43 @@ def main():
     print()
 
     # ---- criterion 1 / question 1 -------------------------------------------
-    print("Q1  twelve nodes moving — group stretches to 3 km and gathers up, twice")
     d = gate.dispersal()
-    ok_mob = d["converged_fraction"] >= 0.95 and d["min_delivery"] >= 0.90
+    print(f"Q1  twelve nodes moving — group stretches to {d['spread_max']/1000:.1f} km "
+          f"and gathers up, twice")
+    # A mobility test inside one radio horizon tests nothing. This criterion previously
+    # stretched to 3 km against a 4.4 km range and could not fail.
+    deep_enough = d["max_hop_depth"] >= 2
+    ok_mob = (d["converged_fraction"] >= 0.95 and d["min_delivery"] >= 0.90
+              and deep_enough)
+    print(f"      radio horizon        {d['range_m']/1000:.2f} km — "
+          f"stretch is {d['spread_max']/d['range_m']:.1f}x it")
+    print(f"      deepest topology     {d['max_hop_depth']} hops"
+          f"{'' if deep_enough else '   <- PRECONDITION FAILED: never left one hop'}")
     print(f"      converged            {d['converged_fraction']*100:.1f}% of samples")
     print(f"      delivery             worst {d['min_delivery']*100:.1f}%, "
           f"mean {d['mean_delivery']*100:.1f}%")
     print(f"      relay transmissions  {d['relay_transmissions']}")
-    print("      spread ->  relays selected  reachable")
-    for t, spread, relays, reach, ok in d["trace"][::max(len(d["trace"])//10, 1)]:
+    print("      spread ->  relays selected  reachable  depth")
+    for t, spread, relays, reach, ok, depth in d["trace"][::max(len(d["trace"])//10, 1)]:
         print(f"        t={t:6.0f}s  {spread:6.0f} m      {relays:3d}          "
-              f"{reach:2d}/12   {'ok' if ok else 'CONVERGING'}")
+              f"{reach:2d}/12   {depth:2d}h  {'ok' if ok else 'CONVERGING'}")
     print(f"      -> {verdict(ok_mob)}")
     results["mobility"] = ok_mob
     print()
 
     # ---- question 5 ----------------------------------------------------------
-    print("Q5  partition and rejoin — half the group walks 4 km away and returns")
     p = gate.partition()
-    ok_part = p["heal_s"] is not None and p["heal_s"] <= 30.0
+    print(f"Q5  partition and rejoin — half the group walks "
+          f"{p['separation_m']/1000:.1f} km away and returns")
+    # A "partition" that never breaks contact heals instantly and means nothing. This
+    # criterion previously separated by 4 km against a 4.4 km range, and the trace showed
+    # 12/12 reachable throughout — including while nominally apart.
+    ok_part = (p["heal_s"] is not None and p["heal_s"] <= 30.0 and p["truly_split"])
+    print(f"      radio horizon        {p['range_m']/1000:.2f} km — "
+          f"separation is {p['separation_m']/p['range_m']:.1f}x it")
+    if not p["truly_split"]:
+        print(f"      PRECONDITION FAILED  front still saw "
+              f"{p['worst_reach_while_apart']}/{p['nodes']} while apart — no partition")
     seen = set()
     for t, phase, ra, rb, ok in p["trace"]:
         if phase not in seen:
