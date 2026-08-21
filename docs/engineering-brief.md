@@ -71,7 +71,7 @@ These are non-negotiable and derived from operational reality, not preference.
 
 | Parameter | Value | Notes |
 |---|---|---|
-| Band | VHF Mid Band 137.9625–165.04375 MHz or High Band 165.04375–173.09375 MHz | UK Business Radio. Both permit 25 kHz single-frequency channels |
+| Band | VHF Mid Band 137.9625–165.04375 MHz or High Band 165.04375–173.09375 MHz | UK Business Radio. Both permit 25 kHz single-frequency channels. **High Band preferred** — it is inside the CC1200's characterised band, [OQ-0027](open-questions.md#oq-0027) |
 | Channel width | 25 kHz | Chosen over 12.5 kHz to afford Codec2 3200 and four slots |
 | Mode | Simplex (single frequency) | Same frequency TX and RX, TDD |
 | Modulation | 4FSK | Scaling DMR's proven 9.6 kbps in 12.5 kHz |
@@ -258,8 +258,9 @@ station."
 3. Beacon interval. Trade-off between reconvergence speed and channel overhead.
 4. Slot count. Four is derived from Codec2 3200 plus FEC at 19.2 kbps. If the real bit rate
    differs, revisit.
-5. VHF Mid Band or High Band. Propagation is near-identical; availability of a 25 kHz simplex
-   assignment decides it.
+5. VHF Mid Band or High Band. Propagation is near-identical, so **prefer High Band** and let
+   availability of a 25 kHz simplex assignment decide only if it must — High Band sits inside
+   the CC1200's characterised 164–190 MHz band, Mid Band does not. [OQ-0027](open-questions.md#oq-0027).
 6. Encryption. Not required, but AES is cheap to add and expected in this class of product.
 7. In-house or contracted development.
 

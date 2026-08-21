@@ -15,6 +15,7 @@ yet in any of them.
 | [OQ-0024](#oq-0024) | Acquisition preamble — 56 bit-times, or 128 if the LO free-runs | Phase 1 | Reach. 3 hops vs 12 | **Open, blocking** |
 | [OQ-0025](#oq-0025) | PA chain from the CC1200's +16 dBm to 5 W | Phase 2 | Range. The sim assumes 37 dBm and the modem gives 16 | Open |
 | [OQ-0026](#oq-0026) | TX duty cycle — measured 20% worst node, vs a handheld's 5% | Phase 2 | Thermal, battery, **and who dies first** | Open |
+| [OQ-0027](#oq-0027) | Which VHF band to request from Ofcom | **Before the licence application** | Whether the CC1200 runs in a characterised band | Open |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1268,3 +1269,41 @@ Two consequences, and the second is the interesting one:
 
    **Not yet built.** Raised here because it changes what a beacon carries, and beacon layout
    should not be settled twice.
+
+## OQ-0027
+### Which VHF band to request — High Band, and ask for it early
+
+The brief lists Mid Band and High Band as interchangeable, decided by whichever 25 kHz simplex
+assignment Ofcom can offer. On propagation they are interchangeable. **On silicon they are not.**
+
+[TI's published band list for the CC1200](https://www.ti.com/product/CC1200):
+
+| Band | Status |
+|---|---|
+| 164–190 MHz, 410–475, 820–950 | Primary, characterised |
+| 137–158.3, 205–237.5, 274–316.6 | *"Possible support for additional frequency bands"* — contact TI |
+
+Against the two candidates:
+
+- **VHF High Band, 165.04375–173.09375 MHz** — entirely inside the primary **164–190 MHz** band.
+- **VHF Mid Band, 137.9625–165.04375 MHz** — mostly inside the uncharacterised 137–158.3 region,
+  and **158.3–165.04 MHz appears in neither list**.
+
+Sensitivity, phase noise, spurious emissions and output power are all specified in the first
+case and not in the second — and those are precisely the parameters EN 300 113 tests. Landing
+in an uncharacterised band would not stop the radio working; it would mean discovering by
+measurement what should have been read off a page, at the point where a conformity failure is
+most expensive to fix.
+
+**Action: request a High Band assignment, and treat Mid Band as the fallback that costs a
+characterisation exercise.** This has to happen before the licence application rather than
+after, which is why it is flagged now.
+
+Two notes attached to the same finding:
+
+- The simulator's `LinkBudget.freq_hz` defaults to **155 MHz**, in the uncharacterised region.
+  Protocol results are unaffected — 155 vs 168 MHz is inside the noise of the vegetation model
+  — but it should not become the number the RF design is built around.
+- **TI's CC1190 range extender does not apply here.** It is advertised on the CC1200 product
+  page as the route to +27 dBm, and it is an 850–950 MHz part reaching 500 mW. Neither the band
+  nor the power is ours. The 5 W chain is a separately-sourced VHF module, [OQ-0025](#oq-0025).
