@@ -9,6 +9,18 @@ several things on this list were previously "done" in a way that turned out not 
 
 Status: `[ ]` open · `[~]` in progress · `[x]` done · `[!]` blocked on a decision
 
+## Scope
+
+**Licensing and spectrum assignment are out of scope for this repository.** No licence
+applications, timelines, forms or enquiries appear on this list.
+
+The one exception, and it is an engineering one: **if the design drifts outside what would
+pass conformity, that is a defect and it goes on this list.** The relevant constraints stay in
+the technical docs because they bound the design — 25 kHz occupied bandwidth, EN 300 113-2
+adjacent channel power during burst transitions ([ADR-0002](decisions/0002-tdma-slot-pipelining.md)),
+ERP limits, and which VHF band the transceiver is characterised for
+([OQ-0027](open-questions.md#oq-0027)). Those are inputs to the design, not administration.
+
 ---
 
 ## P0 — The instrument is broken. Nothing below is trustworthy until this is fixed.
@@ -26,11 +38,8 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done · `[!]` blocked on a deci
 - [ ] **B-03 · Re-read every "gate 5/5" claim made since terrain landed.** Two of five
       criteria could not fail. Correct anything downstream that leaned on them. *Hours.*
 
-## P1 — Lead time. These wait for nobody; start them in parallel with everything else.
+## P1 — Lead time. Hardware procurement; order early because it just waits.
 
-- [ ] **L-01 · Ofcom Innovation & Trial licence application.** Up to **3 months** to active
-      licence. Form OfW225. Request **VHF High Band 165.04–173.09 MHz** per
-      [OQ-0027](open-questions.md#oq-0027). **Done when:** submitted. *Half a day.*
 - [!] **L-02 · Order the bench motherboards.** 4× SMARTRFTRXEBK. Chip-independent, so it does
       not wait on D-01. **Done when:** ordered. *An hour.*
 - [!] **L-03 · Order daughtercards.** Blocked on **D-01**. Either 2× CC1120EMK-169 or a fab

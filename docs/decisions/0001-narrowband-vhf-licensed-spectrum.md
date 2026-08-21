@@ -37,8 +37,9 @@ Band (165.04375–173.09375 MHz) — in a 25 kHz single-frequency simplex channe
 - Gross bit rate is ~19.2 kbps *at best*, and every design decision downstream lives inside that.
   This is the binding constraint on the entire system — see [OQ-0001](../open-questions.md) and
   [OQ-0002](../open-questions.md).
-- Requires an Ofcom licence to operate and an Innovation and Trial licence to test over the air
-  (Phase 2). Bench work into dummy loads needs neither.
+- Operating and over-the-air testing are licensed activities. **Out of scope for this
+  repository** — see *Scope* in [backlog.md](../backlog.md). Bench work into dummy loads is
+  not, and Phase 1 is entirely bench work.
 - Requires RED conformity for the finished product: EN 300 113-2 / EN 301 166-2, EN 301 489-1
   and -5, EN 62368-1, EN 62479 / EN 50665. Self-assessment under Module A is available.
 - The antenna must be a ~15–20 cm helical. A quarter wave at 155 MHz is 48 cm and unwearable.
@@ -46,9 +47,11 @@ Band (165.04375–173.09375 MHz) — in a 25 kHz single-frequency simplex channe
 
 ## Reversal trigger
 
-A 25 kHz simplex assignment turns out to be unobtainable in both Mid and High Band. That is a
-spectrum-availability question, not an engineering one, and it should be settled with Ofcom before
-Phase 2 — not after.
+A 25 kHz simplex assignment turns out to be unobtainable in both Mid and High Band, or the
+design drifts outside what EN 300 113-2 will pass. The first is a spectrum-availability
+question and out of scope here. **The second is not** — adjacent channel power during burst
+transitions is an engineering property of the slot structure, and if the design stops being
+conformant that is a reversal trigger this repository owns.
 
 ## Alternatives rejected
 

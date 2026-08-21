@@ -15,7 +15,7 @@ yet in any of them.
 | [OQ-0024](#oq-0024) | Acquisition preamble — 56 bit-times, or 128 if the LO free-runs | Phase 1 | Reach. 3 hops vs 12 | **Open, blocking** |
 | [OQ-0025](#oq-0025) | PA chain from the CC1200's +16 dBm to 5 W | Phase 2 | Range. The sim assumes 37 dBm and the modem gives 16 | Open |
 | [OQ-0026](#oq-0026) | TX duty cycle — measured 20% worst node, vs a handheld's 5% | Phase 2 | Thermal, battery, **and who dies first** | Open |
-| [OQ-0027](#oq-0027) | Which VHF band to request from Ofcom | **Before the licence application** | Whether the CC1200 runs in a characterised band | Open |
+| [OQ-0027](#oq-0027) | Which VHF band the transceiver is actually characterised for | Before the RF design | Whether the part is specified in our band or not | Open |
 | [OQ-0028](#oq-0028) | Do two co-slot relays carrying an identical payload decode? | Phase 1 | **Every delivery figure in the project.** 7 hops vs 3 | **Open, blocking** |
 | [OQ-0029](#oq-0029) | FFI deferred automatic relaying as possibly infeasible in 25 kHz | Phase 0 | Whether the core premise holds | **Open — risk register** |
 | [OQ-0030](#oq-0030) | Are we optimising the wrong thing — hop count instead of range per hop? | **Now, it is a strategy question** | Direction of the whole MAC effort | **Open** |
@@ -24,7 +24,7 @@ yet in any of them.
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
 | [OQ-0005](#oq-0005) | ~~Slot count — is 4 right?~~ | — | — | **Closed** — [ADR-0008](decisions/0008-four-slots.md), 4 is forced |
-| [OQ-0006](#oq-0006) | VHF Mid Band or High Band | Ofcom enquiry | Nothing technical | Open |
+| [OQ-0006](#oq-0006) | ~~VHF Mid Band or High Band~~ | — | — | **Closed** — superseded by [OQ-0027](#oq-0027), which answers it on silicon |
 | [OQ-0007](#oq-0007) | Encryption | Phase 3 | BOM, key management UX | Open |
 | [OQ-0008](#oq-0008) | In-house or contracted development | Commercial | Schedule and cost | Open |
 | [OQ-0009](#oq-0009) | Channel access — beacons defer, relays are receiver-decided and staggered | Phase 1 | Simultaneous-PTT arbitration still unspecified | Open — no longer blocking |
@@ -272,17 +272,13 @@ brief describes. Slot count sets:
 The brief's framing of this as "hops per frame" is not the right axis.
 
 ## OQ-0006
-### VHF Mid Band or High Band
+### ~~VHF Mid Band or High Band~~ — closed
 
-Propagation is near-identical. Availability of a 25 kHz simplex assignment decides it. This is an
-Ofcom enquiry, not an engineering question, and nothing downstream waits on it — but it should be
-raised early, because it is also where the answer to "is a 25 kHz simplex assignment obtainable at
-all" comes from, and that one *is* load-bearing
-([ADR-0001 reversal trigger](decisions/0001-narrowband-vhf-licensed-spectrum.md#reversal-trigger)).
+Propagation is near-identical between the two, so this was never an engineering question.
+Superseded by [OQ-0027](#oq-0027), which answers it from the transceiver datasheet instead:
+High Band sits inside the part's characterised range and Mid Band does not.
 
-Now also carries a second question: the Technically Assigned licence for gateway sites
-([Addendum 01 §4](addendum-01-packet-architecture.md#4-node-types)). Conventional and well-trodden,
-but worth raising in the same enquiry rather than a separate one.
+Spectrum availability and licensing are out of scope for this repository.
 
 ## OQ-0007
 ### Encryption
@@ -1322,10 +1318,10 @@ Two consequences, and the second is the interesting one:
    should not be settled twice.
 
 ## OQ-0027
-### Which VHF band to request — High Band, and ask for it early
+### Which VHF band the silicon is characterised for — High Band
 
 The brief lists Mid Band and High Band as interchangeable, decided by whichever 25 kHz simplex
-assignment Ofcom can offer. On propagation they are interchangeable. **On silicon they are not.**
+assignment is available. On propagation they are interchangeable. **On silicon they are not.**
 
 [TI's published band list for the CC1200](https://www.ti.com/product/CC1200):
 
@@ -1346,9 +1342,14 @@ in an uncharacterised band would not stop the radio working; it would mean disco
 measurement what should have been read off a page, at the point where a conformity failure is
 most expensive to fix.
 
-**Action: request a High Band assignment, and treat Mid Band as the fallback that costs a
-characterisation exercise.** This has to happen before the licence application rather than
-after, which is why it is flagged now.
+**Engineering position: High Band is the band this hardware is specified in. Mid Band is
+workable but costs a characterisation exercise**, because sensitivity, phase noise, spurious
+emissions and output power would all have to be measured rather than read off a page — and
+those are precisely the parameters EN 300 113 tests.
+
+Recorded as a hardware constraint, not an action. Which band is actually obtained is not an
+engineering decision and is out of scope here; this entry exists so that whoever makes it
+knows what the part costs in each case.
 
 Two notes attached to the same finding:
 
