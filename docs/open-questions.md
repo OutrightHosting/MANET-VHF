@@ -33,7 +33,7 @@ yet in any of them.
 | [OQ-0016](#oq-0016) | Confirmed transactions across a moving multi-hop path | Phase 0 | Every confirmed feature in the set | Open |
 | [OQ-0017](#oq-0017) | Concurrent call capacity, clustered vs chained | **Phase 0** | Feature parity with DMR; the 3-vs-4 slot decision | Open |
 | [OQ-0018](#oq-0018) | ~~The header cannot express the previous hop~~ | — | — | **Closed** — field added |
-| [OQ-0019](#oq-0019) | Uniform propagation cannot express a blocked link | **Phase 0** | **BLOCKING.** Whether any reach figure means anything | **Open, blocking** |
+| [OQ-0019](#oq-0019) | ~~Uniform propagation cannot express a blocked link~~ | — | — | **Closed** — [ADR-0010](decisions/0010-terrain-diffraction.md), model built |
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
 | [OQ-0021](#oq-0021) | Many-to-many — streams now cross; `dst` still inert | **Phase 0** | Addressed calls; concurrent-stream quality | Open — no longer total failure |
 | [OQ-0022](#oq-0022) | ~~Which latency budget applies~~ | — | — | **Closed** — 500 ms mouth-to-ear |
@@ -907,6 +907,30 @@ the twelve-person example, and one was a defect in the harness:
   local density alone.
 
 ### What actually bounds it
+
+> ## RETRACTED 2026-08-21 — every figure below is from the 60 ms frame
+>
+> Measured before `MANET_VOICE_TTL` existed and at a 15 ms slot. The frame is now 160 ms
+> with 40 ms slots and voice is TTL-bounded, so **the sixty-hop chain the table describes
+> cannot happen**: voice stops at 4 hops.
+>
+> Specifically retracted:
+>
+> | Claim below | Status |
+> |---|---|
+> | "Node count and coverage area are **effectively unbounded**" | **Half false.** Node count, yes — nothing in the protocol scales with N. Coverage is bounded at `MANET_VOICE_TTL` = 4 hops |
+> | "Latency 15 ms per hop, linear" | **False twice.** The slot is 40 ms, and the gate chain measures **1.7 slots per hop and rising** (2 hops 1.8, 3 hops 4.2, 4 hops 6.8) because relays wait on the NAMA election |
+> | "300 ms criterion reached at about 20 hops" | **False.** The budget is 500 ms ([OQ-0022](#oq-0022)), and at the measured per-hop cost it is reached at **4** |
+> | "60 hops still delivered 97.7%" | Unreproducible — TTL stops the frame at 4 |
+> | Loss per hop 0.04%, collisions 6 | Unverified against the current build |
+>
+> The *local density* finding below is unaffected — it concerns beacon slot exhaustion in one
+> earshot group, which does not depend on frame duration or TTL.
+>
+> **Before re-measuring**, `sim/scenarios/scaling.py` needs its chain spacing re-derived for
+> the corrected vegetation model ([OQ-0023](#oq-0023)) and the harness must stop reporting hop
+> counts that TTL forbids. Until then this question is genuinely open, and the honest current
+> answer is: **node count unbounded, reach 4 hops.**
 
 With those corrected, measured across chains from 12 to 200 radios:
 

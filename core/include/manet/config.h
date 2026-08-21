@@ -296,9 +296,18 @@
  * TTL a radio stamps on voice it originates.
  *
  * Bounded by LATENCY, not by the field width. The budget is 500 ms mouth-to-ear (OQ-0022,
- * decided): 200 ms packetisation + ~60 ms de-jitter and codec leaves 240 ms of network, and
- * at 50 ms per hop that is four hops. A voice frame outliving that occupies the network to
- * deliver audio too late to answer.
+ * decided): 160 ms packetisation + ~60 ms de-jitter and codec leaves 280 ms of network.
+ * A voice frame outliving that occupies the network to deliver audio too late to answer.
+ *
+ * Four is right, but NOT for the reason this comment used to give. It reasoned from a
+ * 200 ms frame at 50 ms per hop; the frame is 160 ms and the slot 40 ms, which at the one
+ * hop per slot ADR-0002 promises would give SEVEN. It does not give seven, because the gate
+ * chain measures 1.7 slots per hop and rising with depth (2 hops 1.8 slots, 3 hops 4.2,
+ * 4 hops 6.8) — relays wait on the NAMA election. 280 / (40 * 1.7) = 4.1.
+ *
+ * So the per-hop slot cost, not the bit rate, is the biggest single lever on reach:
+ * recovering 1.7 -> 1.0 is worth 70% more hops at any frame size, which is more than the
+ * whole 19.2 -> 22.4 kbps upgrade buys. See OQ-0009.
  *
  * Data is not latency-bound and may use the full field.
  */

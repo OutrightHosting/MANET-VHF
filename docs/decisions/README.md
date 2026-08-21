@@ -19,11 +19,12 @@ decision stands and we stop discussing it.
 | [0002](0002-tdma-slot-pipelining.md) | 4-slot TDMA with slot pipelining, not store-and-forward | Accepted |
 | [0003](0003-olsr-mpr-routing.md) | OLSR-derived proactive routing with MPR flooding | Accepted |
 | [0004](0004-codec2-3200.md) | Codec2 at 3200 bps as the vocoder | Accepted |
-| [0005](0005-cc1200-stm32-bench-platform.md) | CC1200 + STM32F4 bench platform; SDR and adapted DMR rejected | Accepted |
+| [0005](0005-cc1200-stm32-bench-platform.md) | CC1200 + STM32F4 bench platform; SDR and adapted DMR rejected | **Re-opened** — no CC1200 EM exists in band |
 | [0006](0006-c-core-python-harness.md) | One protocol implementation in C, driven by a Python simulation harness | Accepted |
 | [0007](0007-packet-switched-frame-architecture.md) | Packet-switched frame architecture with typed, addressed frames | Accepted |
 | [0008](0008-four-slots.md) | ~~Four slots per frame — forced from both directions~~ | Superseded by 0009 |
 | [0009](0009-frame-structure-with-real-preamble.md) | 120 ms frame, 4 × 30 ms, voice over two slots | Accepted |
+| [0010](0010-terrain-diffraction.md) | Terrain per-link by knife-edge diffraction, not as an environment | Accepted |
 
 ## Format
 

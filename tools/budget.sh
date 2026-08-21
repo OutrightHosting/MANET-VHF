@@ -28,14 +28,23 @@ printf '%-24s %6s %6s %6s %6s %6s %7s %9s\n' \
 printf '%-24s %6s %6s %6s %6s %6s %7s %9s\n' \
     '------------------------' '----' '----' '-----' '------' '-----' '------' '---------'
 
-row '4x15ms 19.2k ADR-0007'
-row '3x20ms 19.2k'           -DMANET_SLOTS_PER_FRAME=3L
-row '2x30ms 19.2k'           -DMANET_SLOTS_PER_FRAME=2L
-row '4x15ms 22.4k'           -DMANET_GROSS_BITRATE_BPS=22400L
-row '4x15ms 16.0k'           -DMANET_GROSS_BITRATE_BPS=16000L
-row '3x20ms 16.0k'           -DMANET_SLOTS_PER_FRAME=3L -DMANET_GROSS_BITRATE_BPS=16000L
-row '4x15ms 19.2k codec2400' -DMANET_VOICE_PAYLOAD_BITS=144L
-row '4x15ms 19.2k seq 6b'    -DMANET_SEQ_BITS=6u
+# Slot count cannot be varied alone: config.h asserts the frame divides evenly into
+# slots, and 160 ms does not divide by 3. Every 3-slot row therefore carries a frame
+# duration that does. 159 ms is the nearest to the real 160 ms frame.
+THREE='-DMANET_SLOTS_PER_FRAME=3L -DMANET_FRAME_DURATION_US=159000L'
+
+# shellcheck disable=SC2086
+row '4x40ms 19.2k ADR-0009'
+# shellcheck disable=SC2086
+row '3x53ms 19.2k'           $THREE
+row '2x80ms 19.2k'           -DMANET_SLOTS_PER_FRAME=2L
+row '4x40ms 22.4k'           -DMANET_GROSS_BITRATE_BPS=22400L
+row '4x40ms 16.0k'           -DMANET_GROSS_BITRATE_BPS=16000L
+# shellcheck disable=SC2086
+row '3x53ms 16.0k'           $THREE -DMANET_GROSS_BITRATE_BPS=16000L
+# Codec2 2400 over a 160 ms frame is 384 bits, not 144 — that figure was the 60 ms frame.
+row '4x40ms 19.2k codec2400' -DMANET_VOICE_PAYLOAD_BITS=384L
+row '4x40ms 19.2k seq 6b'    -DMANET_SEQ_BITS=6u
 
 echo
 echo 'Beacon overhead at the default interval — OQ-0004, first cut:'
@@ -43,8 +52,9 @@ echo
 $CC $CFLAGS -DBUDGET_BEACON tools/budget.c -o "$OUT/beacon4"
 "$OUT/beacon4"
 echo
-echo '  (the same, at 3 x 20 ms)'
-$CC $CFLAGS -DBUDGET_BEACON -DMANET_SLOTS_PER_FRAME=3L tools/budget.c -o "$OUT/beacon3"
+echo '  (the same, at 3 x 53 ms)'
+# shellcheck disable=SC2086
+$CC $CFLAGS -DBUDGET_BEACON $THREE tools/budget.c -o "$OUT/beacon3"
 "$OUT/beacon3"
 
 echo

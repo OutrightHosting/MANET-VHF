@@ -70,15 +70,19 @@ Phase 0 is where the project is. Do not buy hardware until it passes.
 
 ## Before Phase 0 starts
 
-**[OQ-0002](docs/open-questions.md#oq-0002) — the slot budget does not close, structurally.** At
-19.2 kbps a 15 ms slot yields ~264 on-air bits after a DMR-proportional guard. Sync takes 24, the
-frame header 34, Codec2 3200 takes 192 — leaving **14 bits for FEC**. That is a CRC, not error
-correction, on a channel with no retransmission. Five escape routes are costed in the tracker; the
-strongest is 3 slots × 20 ms, which restores a 45% FEC ratio. None is picked. This is the
-simulator's first job, ahead of the five questions in the brief.
+**[OQ-0002](docs/open-questions.md#oq-0002) — the slot budget is tight, and every figure in it
+is an assumption.** At 19.2 kbps a 40 ms slot yields 704 on-air bits after a DMR-proportional
+guard. Sync takes 56, the frame header 42, Codec2 3200 takes 512 — leaving **94 bits for FEC,
+16%**, against DMR's 47%. Verify with `make budget`.
+
+That is a great deal better than the 2% this section reported when the frame was 60 ms, and the
+whole improvement came from re-deriving the acquisition preamble
+([docs/preamble-budget.md](docs/preamble-budget.md)) rather than from anything clever in the
+protocol. It is still not enough, and the two levers that close it — gross bit rate
+([OQ-0001](docs/open-questions.md#oq-0001)) and vocoder rate — are both bench measurements.
 
 [OQ-0012](docs/open-questions.md#oq-0012) — header field widths. Every bit is a bit of FEC, and
-there are only 14 to spend. The header format is the one artefact that cannot change after radios
+there are 94 to spend. The header format is the one artefact that cannot change after radios
 ship.
 
 [OQ-0013](docs/open-questions.md#oq-0013) — spatial reuse distance. Under pipelining the originator

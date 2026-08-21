@@ -11,8 +11,12 @@ Two honest caveats, stated here rather than buried:
     at VHF (about 6 km over open ground, about 4.4 km through dense woodland), not derived
     from measurement. Phase 2 exists to replace them. The vegetation term itself is not
     calibrated — it is ITU-R P.833-10 equation (1) with published parameters.
-  * Terrain is modelled as an environment applied uniformly to every link, not as real
-    topography. A ridge between two specific radios is not represented.
+  * Path loss is an environment applied uniformly to every link. Terrain on top of that
+    is NOT uniform: pass a height field as `terrain=` and `rx_dbm_between` charges
+    ITU-R P.526 knife-edge diffraction over the ground profile between each specific
+    pair, so a ridge between two radios is represented. See `terrain.py`, and
+    `scenarios/hill.py` for the case it was built for. With the default `Flat` terrain
+    the diffraction term is skipped entirely and this reduces to the uniform model.
 
 What the model does take seriously is the distinction that decides OQ-0013: a signal can
 be far too weak to decode and still be strong enough to ruin someone else's reception.

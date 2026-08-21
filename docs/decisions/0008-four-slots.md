@@ -70,11 +70,17 @@ any error correction.
 
 ## Consequences
 
-- The MAC frame structure is settled: 60 ms, four slots of 15 ms, one hop per slot.
-- **The slot budget is not settled, and this decision makes it worse.** Four slots leaves
-  6 bits for FEC — 2% where DMR runs 47%. See below.
-- Concurrent calls when clustered: four, matching DMR's spectral efficiency
-  ([OQ-0017](../open-questions.md#oq-0017)).
+- The MAC frame structure is settled: **160 ms, four slots of 40 ms**, one hop per slot.
+  (Recorded here as 60 ms / 15 ms; corrected by [ADR-0009](0009-frame-duration.md) and then by
+  the preamble re-derivation in [docs/preamble-budget.md](../preamble-budget.md).)
+- **The slot budget is not settled.** Four slots leaves **94 bits for FEC, 16%**, where DMR
+  runs 47%. Better than the 2% recorded when this ADR was written, still short.
+- Concurrent calls when clustered: four is the number the *slot structure permits*. **No
+  mechanism currently delivers it** — nothing arbitrates which talker owns which phase, and
+  `multi_talker` in the harness is not called by anything. Treat the four as an upper bound
+  that is unbuilt, not as a measured capability ([OQ-0017](../open-questions.md#oq-0017)).
+  One hop per slot is likewise the *design intent*: the gate chain measures **1.7 slots per
+  hop** and rising with depth, because relays wait on the NAMA election.
 - Beacon airtime 9.0% rather than three slots' 12.1% ([OQ-0004](../open-questions.md#oq-0004)),
   so the cheaper option on that axis too.
 - Reuse margin is 5.3 dB above the capture requirement. That is a real engineering margin
