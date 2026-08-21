@@ -6,20 +6,21 @@
 /*
  * Golden wire vector. Pins the header layout so it cannot drift silently.
  *
- *   src  8  0x12  0001 0010
+ *   src  8  0x12  0001 0010   (origin — never rewritten)
+ *   prev 8  0x34  0011 0100   (last hop — rewritten every hop)
  *   dst  8  0xC5  1100 0101
  *   type 4  0x0   0000
  *   seq  8  0x9A  1001 1010
  *   ttl  4  0xF   1111
  *   prio 2  0x1   01
  *
- * MSB first, concatenated:  00010010 11000101 0000 10011010 1111 01
- * Grouped into bytes:       0x12 0xC5 0x09 0xAF then '01' in the top two bits of [4].
+ * MSB first:          00010010 00110100 11000101 0000 10011010 1111 01
+ * Grouped into bytes: 0x12 0x34 0xC5 0x09 0xAF then '01' in the top two bits of [5].
  */
 static void test_golden_vector(void)
 {
     static const manet_header_t h = {
-        0x12u, 0xC5u, MANET_FRAME_VOICE, 0x9Au, 0x0Fu, MANET_PRIO_VOICE
+        0x12u, 0x34u, 0xC5u, MANET_FRAME_VOICE, 0x9Au, 0x0Fu, MANET_PRIO_VOICE
     };
     uint8_t buf[8];
 
@@ -27,10 +28,11 @@ static void test_golden_vector(void)
     memset(buf, 0x00, sizeof buf);
     CHECK_EQ(manet_header_pack(&h, buf, sizeof buf), MANET_OK);
     CHECK_EQ(buf[0], 0x12);
-    CHECK_EQ(buf[1], 0xC5);
-    CHECK_EQ(buf[2], 0x09);
-    CHECK_EQ(buf[3], 0xAF);
-    CHECK_EQ(buf[4], 0x40);
+    CHECK_EQ(buf[1], 0x34);
+    CHECK_EQ(buf[2], 0xC5);
+    CHECK_EQ(buf[3], 0x09);
+    CHECK_EQ(buf[4], 0xAF);
+    CHECK_EQ(buf[5], 0x40);
 
     /* One-filled: the same 34 bits are written, and the trailing six are untouched.
      * This is what lets a caller pack a header into a buffer that already holds
@@ -38,11 +40,12 @@ static void test_golden_vector(void)
     memset(buf, 0xFF, sizeof buf);
     CHECK_EQ(manet_header_pack(&h, buf, sizeof buf), MANET_OK);
     CHECK_EQ(buf[0], 0x12);
-    CHECK_EQ(buf[1], 0xC5);
-    CHECK_EQ(buf[2], 0x09);
-    CHECK_EQ(buf[3], 0xAF);
-    CHECK_EQ(buf[4], 0x7F);
-    CHECK_EQ(buf[5], 0xFF);
+    CHECK_EQ(buf[1], 0x34);
+    CHECK_EQ(buf[2], 0xC5);
+    CHECK_EQ(buf[3], 0x09);
+    CHECK_EQ(buf[4], 0xAF);
+    CHECK_EQ(buf[5], 0x7F);
+    CHECK_EQ(buf[6], 0xFF);
 }
 
 static void test_roundtrip(void)
@@ -59,6 +62,7 @@ static void test_roundtrip(void)
                 manet_header_t out;
 
                 in.src  = (manet_addr_t)(i & 0xFFu);
+                in.prev = (manet_addr_t)((i * 3u) & 0xFFu);
                 in.dst  = (manet_addr_t)((i * 7u) & 0xFFu);
                 in.type = (uint8_t)type;
                 in.seq  = (uint8_t)((i * 31u) & 0xFFu);
@@ -73,6 +77,7 @@ static void test_roundtrip(void)
                 CHECK_EQ(manet_header_unpack(&out, buf, sizeof buf), MANET_OK);
 
                 CHECK_EQ(out.src, in.src);
+                CHECK_EQ(out.prev, in.prev);
                 CHECK_EQ(out.dst, in.dst);
                 CHECK_EQ(out.type, in.type);
                 CHECK_EQ(out.seq, in.seq);
@@ -84,11 +89,12 @@ static void test_roundtrip(void)
 
     /* Every source and sequence value, independently. */
     for (i = 0u; i <= 0xFFu; i++) {
-        manet_header_t in  = { 0x01u, 0xFFu, MANET_FRAME_BEACON, 0x00u, 0x01u, MANET_PRIO_SIGNALLING };
+        manet_header_t in  = { 0x01u, 0x02u, 0xFFu, MANET_FRAME_BEACON, 0x00u, 0x01u, MANET_PRIO_SIGNALLING };
         manet_header_t out;
 
         in.src = (manet_addr_t)i;
         in.seq = (uint8_t)(0xFFu - i);
+        if (!manet_addr_is_individual(in.src)) { continue; }
 
         memset(buf, 0x00, sizeof buf);
         CHECK_EQ(manet_header_pack(&in, buf, sizeof buf), MANET_OK);
@@ -100,7 +106,7 @@ static void test_roundtrip(void)
 
 static void test_pack_rejects(void)
 {
-    const manet_header_t h = { 0x01u, 0xFFu, MANET_FRAME_VOICE, 0x00u, 0x0Fu, MANET_PRIO_VOICE };
+    const manet_header_t h = { 0x01u, 0x02u, 0xFFu, MANET_FRAME_VOICE, 0x00u, 0x0Fu, MANET_PRIO_VOICE };
     manet_header_t bad;
     uint8_t buf[MANET_HEADER_BYTES];
 
@@ -138,7 +144,7 @@ static void test_unpack_is_structural(void)
     /* A frame of a type this build has never heard of, addressed to a reserved node
      * class, from a source this build would refuse to originate from. All must parse. */
     {
-        const manet_header_t exotic = { 0x0Au, 0xF3u, 0x0Fu, 0x77u, 0x05u, MANET_PRIO_DATA };
+        const manet_header_t exotic = { 0x0Au, 0x0Bu, 0xF3u, 0x0Fu, 0x77u, 0x05u, MANET_PRIO_DATA };
 
         memset(buf, 0x00, sizeof buf);
         CHECK_EQ(manet_header_pack(&exotic, buf, sizeof buf), MANET_OK);
@@ -174,7 +180,7 @@ static void test_unpack_is_structural(void)
 
 static void test_validate(void)
 {
-    const manet_header_t good = { 0x05u, 0xC1u, MANET_FRAME_VOICE, 0x20u, 0x0Fu, MANET_PRIO_VOICE };
+    const manet_header_t good = { 0x05u, 0x02u, 0xC1u, MANET_FRAME_VOICE, 0x20u, 0x0Fu, MANET_PRIO_VOICE };
     manet_header_t h;
 
     CHECK_EQ(manet_header_validate(&good), MANET_OK);
@@ -209,7 +215,7 @@ static void test_validate(void)
 
 static void test_ttl(void)
 {
-    manet_header_t h = { 0x01u, 0xFFu, MANET_FRAME_VOICE, 0x00u, 0x03u, MANET_PRIO_VOICE };
+    manet_header_t h = { 0x01u, 0x02u, 0xFFu, MANET_FRAME_VOICE, 0x00u, 0x03u, MANET_PRIO_VOICE };
 
     CHECK(manet_header_ttl_decrement(&h));   /* 3 -> 2, still relayable */
     CHECK_EQ(h.ttl, 2);

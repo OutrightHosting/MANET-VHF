@@ -101,7 +101,8 @@ void manet_sched_init(manet_sched_t *s)
     s->has_taken  = false;
 }
 
-manet_status_t manet_sched_relay(manet_sched_t *s, const manet_pdu_t *pdu, uint64_t rx_slot)
+manet_status_t manet_sched_relay(manet_sched_t *s, const manet_pdu_t *pdu,
+                                 uint64_t rx_slot, manet_addr_t me)
 {
     manet_pdu_t next;
 
@@ -116,6 +117,10 @@ manet_status_t manet_sched_relay(manet_sched_t *s, const manet_pdu_t *pdu, uint6
     if (!manet_header_ttl_decrement(&next.hdr)) {
         return MANET_ERR_TTL_EXPIRED;
     }
+
+    /* We are now the previous hop. The origin is untouched — it is what identifies the
+     * frame for duplicate suppression all the way across the network. */
+    manet_header_set_prev(&next.hdr, me);
 
     /* The pipelining rule, and the reason this system works at all: the very next slot,
      * not the next frame. Crossing a frame boundary is not a special case — slot

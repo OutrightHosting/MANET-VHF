@@ -23,11 +23,13 @@ yet in any of them.
 | [OQ-0010](#oq-0010) | RX→TX turnaround budget on a half-duplex transceiver | Phase 1 | Guard interval, therefore payload, therefore OQ-0002 | Open |
 | [OQ-0011](#oq-0011) | ~~Is full OLSR topology-control dissemination needed at all?~~ | — | — | **Closed** — TC stays |
 | [OQ-0012](#oq-0012) | Header field widths and total header size | **Phase 0** | ~~OQ-0002~~; the header format is forever | Open — no longer blocks OQ-0002 |
-| [OQ-0013](#oq-0013) | Spatial reuse distance and its coupling to slot count | **Phase 0** | Whether the 3-slot escape from OQ-0002 is safe | Open |
+| [OQ-0013](#oq-0013) | ~~Spatial reuse distance and its coupling to slot count~~ | — | — | **Answered** — 3 slots unsafe |
 | [OQ-0014](#oq-0014) | Authenticating command frames on an infrastructure-free mesh | Phase 3 (design now) | Whether radio disable can safely exist at all | Open |
 | [OQ-0015](#oq-0015) | Late entry — joining a call already in progress | **Phase 0** | Header/framing; costs bits that do not exist | Open |
 | [OQ-0016](#oq-0016) | Confirmed transactions across a moving multi-hop path | Phase 0 | Every confirmed feature in the set | Open |
 | [OQ-0017](#oq-0017) | Concurrent call capacity, clustered vs chained | **Phase 0** | Feature parity with DMR; the 3-vs-4 slot decision | Open |
+| [OQ-0018](#oq-0018) | ~~The header cannot express the previous hop~~ | — | — | **Closed** — field added |
+| [OQ-0019](#oq-0019) | Uniform-environment propagation cannot express a blocked link | **Phase 0** | The confidence attached to OQ-0013 | Open |
 
 ---
 
@@ -79,7 +81,7 @@ Propagation delay is negligible: 50 µs at 15 km.
 |---|---|---|
 | 1 | **Raise gross rate** to ~22 kbps | Depends entirely on [OQ-0001](#oq-0001) and is not in our gift. Cannot be planned on |
 | 2 | **Cut FEC and framing** | **Eliminated.** Itemisation shows FEC is what has already been squeezed to nothing; and a zero-length header still leaves only 25% — see findings below |
-| 3 | **3 slots × 20 ms** | **Still the strongest, but no longer cheap.** Leaves 102 bits for FEC — a 45% ratio, on the brief's own target. Now known to cost three separate things: a hop of spatial reuse margin ([OQ-0013](#oq-0013)), a concurrent call when clustered ([OQ-0017](#oq-0017)), and a third more beacon airtime ([OQ-0004](#oq-0004)) |
+| 3 | ~~**3 slots × 20 ms**~~ | **ELIMINATED by [OQ-0013](#oq-0013).** Spatial reuse fails in open terrain: 9.6 dB C/I against a 10 dB capture requirement, 34% delivery. Was the leading route; is now unusable. Formerly: Leaves 102 bits for FEC — a 45% ratio, on the brief's own target. Now known to cost three separate things: a hop of spatial reuse margin ([OQ-0013](#oq-0013)), a concurrent call when clustered ([OQ-0017](#oq-0017)), and a third more beacon airtime ([OQ-0004](#oq-0004)) |
 | 4 | **120 ms voice superframe** | Still viable. One codec payload spans two slot opportunities; preserves 4 slots and the gross rate, at the cost of latency and framing complexity. Also halves per-payload header overhead, which is worth something |
 | 5 | **Drop to Codec2 2400** | Newly worth listing. Frees 48 bits and directly relieves the deficit, at the cost of hard requirement 7 becoming a much closer call. Prefer 3 and 4 first |
 
@@ -390,8 +392,39 @@ vegetation, forming a long chain of short hops. That is a normal Tuesday evening
 not an edge case. Model it explicitly, with hop length as an independent variable, rather than
 trusting a hop count.
 
-Note this is analysis, not a measured result. It should be confirmed or demolished in simulation
-before anything is built on it.
+### Answered — 2026-08-21. Three slots is not safe.
+
+Measured in the harness, 8-node chain, spacing at 90% of usable range, voice from one end:
+
+| | C/I margin | Collisions | End-to-end delivery |
+|---|---|---|---|
+| **4 slots**, dense woodland | 48.5 dB | 12 | 88% |
+| **4 slots**, open moorland | 15.3 dB | 42 | 79% |
+| **3 slots**, dense woodland | 27.9 dB | 16 | 82% |
+| **3 slots**, open moorland | **9.6 dB** | **160** | **34%** |
+
+The chain collapses from the second hop onward in open terrain at three slots, and the
+arithmetic says exactly why. A receiver at hop *k+1* hears its neighbour one spacing
+away while the node at hop *k+N* transmits in the same slot, *N−1* spacings away. With
+a path-loss exponent of 3.2 that is a ratio of:
+
+- **N=4** → 3 spacings → 10 × 3.2 × log₁₀(3) = **15.3 dB**, comfortably over the 10 dB a
+  4FSK demodulator needs to hold the wanted signal.
+- **N=3** → 2 spacings → 10 × 3.2 × log₁₀(2) = **9.6 dB**, under it. Both signals are
+  lost, every time, everywhere along the chain.
+
+**And the environment that fails is the opposite of the one predicted.** Earlier
+reasoning in this document held that dense woodland was the danger, because hops are
+short there and 5 W VHF carries far beyond a few hundred metres. That was wrong. The
+interferer is attenuated by the same woodland, and foliage loss grows *super-linearly*
+with distance — so a distant transmitter is punished far harder than a near one and the
+margin widens to 48 dB. Open ground follows a plain power law with no such bonus, which
+is what leaves the margin thin. **Reuse is safest where propagation is worst.**
+
+Two things this does not settle. Absolute delivery is only 79–88% even in the
+configurations that work, which is not good enough and is not yet explained — beacon
+contention is the first suspect. And the uniform propagation model cannot express a
+blocked link, which is [OQ-0019](#oq-0019) and may make the real case worse.
 
 ## OQ-0014
 ### Authenticating command frames on an infrastructure-free mesh
@@ -526,3 +559,54 @@ with [OQ-0009](#oq-0009) (how a node acquires the right to originate at all) and
    reconvergence.
 3. A stated, defensible capacity figure for each — because "how many people can talk at once" is
    the first question any operator asks, and the honest answer is currently unknown.
+
+## OQ-0018
+### ~~The header cannot express the previous hop~~
+
+**Closed** by implementation, 2026-08-21. **The header now carries both.**
+
+Found while writing the harness's forwarding path. MPR flooding relays a frame when the
+node it was *heard from* has selected this radio as a relay — RFC 3626 tests the sender
+of that particular copy, not the frame's originator. The header carried only `src`, the
+origin, which is rewritten nowhere and identifies the frame for duplicate suppression.
+With that alone the forwarding rule cannot be evaluated: **the mesh could not relay
+correctly at all.**
+
+There is no cheap substitute. A neighbour index instead of an address does not work,
+because indices are local to each radio. Relaying "if I am anyone's relay" over-floods a
+channel that cannot afford it. Deriving the sender from the payload violates
+[ADR-0007](decisions/0007-packet-switched-frame-architecture.md), which forbids the
+routing layer from reading payload.
+
+So the header gained a `prev` field of 8 bits and is now 42 bits, 6 bytes. Cost, at
+4 × 15 ms: FEC falls from 14 bits to **6**. At 3 × 20 ms: 102 to 94. This makes
+[OQ-0002](#oq-0002) worse and it is not optional.
+
+The lesson is [OQ-0012](#oq-0012)'s: the header is the one thing that cannot change once
+radios ship, and a field that seemed complete on paper was missing something the
+protocol structurally requires. It was caught because the harness drives the real code
+rather than a model of it — exactly the property
+[ADR-0006](decisions/0006-c-core-python-harness.md) exists to buy.
+
+## OQ-0019
+### Uniform-environment propagation cannot express a blocked link
+
+Raised by the [OQ-0013](#oq-0013) result, and it bounds how much that result is worth.
+
+The harness applies one propagation environment uniformly to every link, so *blocked*
+and *distant* are the same thing. Real terrain does not work that way: two leaders 800 m
+apart with a ridge between them cannot hear each other, while a third radio 3 km away
+across open ground is perfectly audible to both.
+
+That case is the reason the mesh exists, and the model cannot represent it. Worse, it is
+the case where reuse is **most** dangerous — a blocked wanted signal is weak over a short
+distance while an unobstructed interferer is strong over a long one, which is exactly
+the inversion the capture margin cannot survive.
+
+So the open-moorland chain in OQ-0013 is a *proxy* for terrain blocking, not a
+simulation of it. It is a fair proxy — it produces the same thin C/I margin by a
+different route — but the real geometry could be worse and cannot currently be tested.
+
+Needs a per-link obstruction model: an attenuation term attached to specific pairs
+rather than to the environment as a whole. Until then, treat OQ-0013's answer as a lower
+bound on the problem.

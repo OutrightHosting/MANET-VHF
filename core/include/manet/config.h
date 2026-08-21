@@ -127,8 +127,17 @@
 /* Bits actually on air, after guard. */
 #define MANET_SLOT_ONAIR_BITS   ((MANET_GROSS_BITRATE_BPS * MANET_BURST_US) / 1000000L)
 
+/*
+ * src (origin) + prev (last hop) + dst + type + seq + ttl + prio.
+ *
+ * Origin and previous hop are BOTH required and are not the same thing. Origin
+ * identifies the frame for duplicate suppression and survives every hop. Previous hop
+ * changes at each hop and is what the forwarding rule tests: a node relays only for a
+ * neighbour that has selected it. Without it MPR forwarding cannot be implemented at
+ * all — see OQ-0018.
+ */
 #define MANET_HEADER_BITS \
-    ((long)(2u * MANET_ADDR_BITS + MANET_TYPE_BITS + MANET_SEQ_BITS \
+    ((long)(3u * MANET_ADDR_BITS + MANET_TYPE_BITS + MANET_SEQ_BITS \
             + MANET_TTL_BITS + MANET_PRIO_BITS))
 
 #define MANET_HEADER_BYTES ((size_t)((MANET_HEADER_BITS + 7) / 8))
@@ -184,6 +193,12 @@
 /* The group this is actually for. Used only to compute beacon overhead. */
 #ifndef MANET_TYPICAL_GROUP
 #define MANET_TYPICAL_GROUP 12u
+#endif
+
+/* How many recently-seen frames a radio remembers, for duplicate suppression. Must be
+ * comfortably more than the number of frames in flight across the network at once. */
+#ifndef MANET_DEDUP_DEPTH
+#define MANET_DEDUP_DEPTH 32u
 #endif
 
 /* Largest PDU that can ride in one slot: everything on air except the sync word.

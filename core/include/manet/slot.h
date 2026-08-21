@@ -92,14 +92,16 @@ void manet_sched_init(manet_sched_t *s);
  * that crosses a frame boundary — a transmission advances one hop per slot,
  * continuously.
  *
- * The caller has already decided this frame should be relayed. TTL is decremented here
- * and a frame that expires is not scheduled.
+ * The caller has already decided this frame should be relayed. TTL is decremented here,
+ * a frame that expires is not scheduled, and `me` is stamped as the new previous hop —
+ * which is the whole of what relaying changes in a frame. The origin is left alone.
  *
  * Returns MANET_OK if scheduled, MANET_ERR_TTL_EXPIRED if the frame died, or
  * MANET_ERR_BUFFER if the target slot is already claimed by something of equal or
  * higher priority.
  */
-manet_status_t manet_sched_relay(manet_sched_t *s, const manet_pdu_t *pdu, uint64_t rx_slot);
+manet_status_t manet_sched_relay(manet_sched_t *s, const manet_pdu_t *pdu,
+                                 uint64_t rx_slot, manet_addr_t me);
 
 /*
  * Schedule a locally originated transmission in a specific slot. Same priority rules.

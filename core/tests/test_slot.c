@@ -8,6 +8,7 @@ static manet_pdu_t make_pdu(manet_addr_t src, uint8_t seq, uint8_t ttl, uint8_t 
     manet_pdu_t p;
     memset(&p, 0, sizeof p);
     p.hdr.src  = src;
+    p.hdr.prev = src;
     p.hdr.dst  = 0xC0u;
     p.hdr.type = MANET_FRAME_VOICE;
     p.hdr.seq  = seq;
@@ -80,12 +81,13 @@ static void test_relay_is_next_slot(void)
 
     /* Heard in slot 7, goes out in slot 8. Not slot 11, which is where waiting for the
      * next frame would put it. This one line is the whole design. */
-    CHECK_EQ(manet_sched_relay(&s, &in, 7u), MANET_OK);
+    CHECK_EQ(manet_sched_relay(&s, &in, 7u, 0x7Fu), MANET_OK);
     CHECK_EQ(manet_sched_depth(&s), 1);
     CHECK(!manet_sched_take(&s, 7u, &out));
     CHECK(manet_sched_take(&s, 8u, &out));
     CHECK_EQ(out.hdr.ttl, 7);      /* decremented in transit */
     CHECK_EQ(out.hdr.src, 0x05);   /* origin preserved, not rewritten to the relay */
+    CHECK_EQ(out.hdr.prev, 0x7F);  /* previous hop IS rewritten — that is what relaying does */
     CHECK_EQ(manet_sched_depth(&s), 0);
 }
 
@@ -101,7 +103,7 @@ static void test_relay_crosses_frame_boundary(void)
     manet_sched_init(&s);
     {
         manet_pdu_t in = make_pdu(0x09u, 0x02u, 5u, MANET_PRIO_VOICE);
-        CHECK_EQ(manet_sched_relay(&s, &in, last), MANET_OK);
+        CHECK_EQ(manet_sched_relay(&s, &in, last, 0x7Fu), MANET_OK);
     }
     CHECK(manet_sched_take(&s, last + 1u, &out));
 
@@ -123,11 +125,11 @@ static void test_ttl_stops_the_relay(void)
 
     manet_sched_init(&s);
     /* TTL 1 means this hop is the last. It must not be scheduled onward. */
-    CHECK_EQ(manet_sched_relay(&s, &in, 3u), MANET_ERR_TTL_EXPIRED);
+    CHECK_EQ(manet_sched_relay(&s, &in, 3u, 0x7Fu), MANET_ERR_TTL_EXPIRED);
     CHECK_EQ(manet_sched_depth(&s), 0);
 
     in.hdr.ttl = 0u;
-    CHECK_EQ(manet_sched_relay(&s, &in, 3u), MANET_ERR_TTL_EXPIRED);
+    CHECK_EQ(manet_sched_relay(&s, &in, 3u, 0x7Fu), MANET_ERR_TTL_EXPIRED);
     CHECK_EQ(manet_sched_depth(&s), 0);
 }
 
@@ -188,7 +190,7 @@ static void test_passive_acknowledgement(void)
     manet_pdu_t   in = make_pdu(0x05u, 0x42u, 8u, MANET_PRIO_VOICE);
 
     manet_sched_init(&s);
-    CHECK_EQ(manet_sched_relay(&s, &in, 4u), MANET_OK);
+    CHECK_EQ(manet_sched_relay(&s, &in, 4u, 0x7Fu), MANET_OK);
 
     /* A different origin, or a different sequence, is a different frame. */
     CHECK(!manet_sched_suppress(&s, 0x06u, 0x42u));
@@ -247,12 +249,15 @@ static void test_chain_advances_one_hop_per_slot(void)
 
         /* This node transmits in exactly the slot its hop index predicts. */
         CHECK(manet_sched_take(&sched[hop], slot, &tx));
-        CHECK_EQ(tx.hdr.src, 0x01);
+        CHECK_EQ(tx.hdr.src, 0x01);       /* origin, all the way down the chain */
         CHECK_EQ(tx.hdr.seq, 0x77);
         CHECK_EQ(tx.hdr.ttl, 15 - hop);
+        /* ...while the previous hop advances with the frame. The forwarding rule tests
+         * this field, not the origin. */
+        CHECK_EQ(tx.hdr.prev, hop == 0u ? 0x01u : hop + 1u);
 
         if (hop + 1u < (unsigned)HOPS) {
-            CHECK_EQ(manet_sched_relay(&sched[hop + 1u], &tx, slot), MANET_OK);
+            CHECK_EQ(manet_sched_relay(&sched[hop + 1u], &tx, slot, (manet_addr_t)(hop + 2u)), MANET_OK);
         }
     }
 

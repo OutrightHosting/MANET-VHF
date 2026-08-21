@@ -64,9 +64,17 @@ typedef enum {
     MANET_ERR_TTL_EXPIRED
 } manet_status_t;
 
-/* Unpacked header. Wire layout is src, dst, type, seq, ttl, prio — MSB first. */
+/*
+ * Unpacked header. Wire layout is src, prev, dst, type, seq, ttl, prio — MSB first.
+ *
+ * `src` is the ORIGIN and never changes as a frame crosses the network. `prev` is
+ * whoever transmitted this particular copy, and is rewritten at every hop. Duplicate
+ * suppression keys on src; the forwarding decision keys on prev. Confusing the two
+ * produces a mesh that either loops or refuses to relay.
+ */
 typedef struct {
     manet_addr_t src;
+    manet_addr_t prev;
     manet_addr_t dst;
     uint8_t      type; /* manet_frame_type_t, or an unrecognised reserved value */
     uint8_t      seq;
@@ -83,6 +91,9 @@ typedef struct {
  * Validates field widths but NOT semantics — call manet_header_validate() first when
  * originating. */
 manet_status_t manet_header_pack(const manet_header_t *h, uint8_t *buf, size_t cap_bytes);
+
+/* Stamp this radio as the previous hop. Called by a relay before retransmitting. */
+void manet_header_set_prev(manet_header_t *h, manet_addr_t me);
 
 /* Deserialise. Structural only: succeeds for any bit pattern of sufficient length,
  * including unrecognised frame types and reserved destination addresses. See the note

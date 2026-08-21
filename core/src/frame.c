@@ -18,6 +18,7 @@ manet_status_t manet_header_pack(const manet_header_t *h, uint8_t *buf, size_t c
     /* manet_bitw_put rejects a value too wide for its field, so a field-range bug
      * cannot reach the air. Wire order is fixed: src, dst, type, seq, ttl, prio. */
     if (!manet_bitw_put(&w, (uint32_t)h->src,  MANET_ADDR_BITS) ||
+        !manet_bitw_put(&w, (uint32_t)h->prev, MANET_ADDR_BITS) ||
         !manet_bitw_put(&w, (uint32_t)h->dst,  MANET_ADDR_BITS) ||
         !manet_bitw_put(&w, (uint32_t)h->type, MANET_TYPE_BITS) ||
         !manet_bitw_put(&w, (uint32_t)h->seq,  MANET_SEQ_BITS)  ||
@@ -32,7 +33,7 @@ manet_status_t manet_header_pack(const manet_header_t *h, uint8_t *buf, size_t c
 manet_status_t manet_header_unpack(manet_header_t *h, const uint8_t *buf, size_t cap_bytes)
 {
     manet_bitr_t r;
-    uint32_t     src, dst, type, seq, ttl, prio;
+    uint32_t     src, prev, dst, type, seq, ttl, prio;
 
     if (h == NULL || buf == NULL) {
         return MANET_ERR_NULL_ARG;
@@ -44,6 +45,7 @@ manet_status_t manet_header_unpack(manet_header_t *h, const uint8_t *buf, size_t
     manet_bitr_init(&r, buf, cap_bytes);
 
     if (!manet_bitr_get(&r, &src,  MANET_ADDR_BITS) ||
+        !manet_bitr_get(&r, &prev, MANET_ADDR_BITS) ||
         !manet_bitr_get(&r, &dst,  MANET_ADDR_BITS) ||
         !manet_bitr_get(&r, &type, MANET_TYPE_BITS) ||
         !manet_bitr_get(&r, &seq,  MANET_SEQ_BITS)  ||
@@ -53,6 +55,7 @@ manet_status_t manet_header_unpack(manet_header_t *h, const uint8_t *buf, size_t
     }
 
     h->src  = (manet_addr_t)src;
+    h->prev = (manet_addr_t)prev;
     h->dst  = (manet_addr_t)dst;
     h->type = (uint8_t)type;
     h->seq  = (uint8_t)seq;
@@ -71,6 +74,10 @@ manet_status_t manet_header_validate(const manet_header_t *h)
         return MANET_ERR_NULL_ARG;
     }
     if (!manet_addr_is_valid_source(h->src)) {
+        return MANET_ERR_BAD_SOURCE;
+    }
+    /* The previous hop is a specific radio too — a frame cannot arrive "from" a group. */
+    if (!manet_addr_is_valid_source(h->prev)) {
         return MANET_ERR_BAD_SOURCE;
     }
     if (!manet_addr_is_valid_dest(h->dst)) {
@@ -125,4 +132,11 @@ bool manet_header_ttl_decrement(manet_header_t *h)
     }
     h->ttl--;
     return h->ttl > 0u;
+}
+
+void manet_header_set_prev(manet_header_t *h, manet_addr_t me)
+{
+    if (h != NULL) {
+        h->prev = me;
+    }
 }

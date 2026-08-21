@@ -23,15 +23,15 @@ void test_config_all(void)
     CHECK_EQ(MANET_GUARD_US, 1245);
     CHECK_EQ(MANET_BURST_US, 13755);
 
-    /* Header — ADR-0007 straw-man is 34 bits in 5 bytes */
-    CHECK_EQ(MANET_HEADER_BITS, 34);
-    CHECK_EQ(MANET_HEADER_BYTES, 5);
+    /* Header — 42 bits in 6 bytes since the previous-hop field (OQ-0018) */
+    CHECK_EQ(MANET_HEADER_BITS, 42);
+    CHECK_EQ(MANET_HEADER_BYTES, 6);
 
-    /* The budget, and the number that makes OQ-0002 a blocker: 14 bits for FEC */
+    /* The budget. Six bits for FEC — OQ-0002, made worse by OQ-0018. */
     CHECK_EQ(MANET_SLOT_RAW_BITS, 288);
     CHECK_EQ(MANET_SLOT_ONAIR_BITS, 264);
-    CHECK_EQ(MANET_FEC_BITS_AVAILABLE, 14);
-    CHECK_EQ(MANET_FEC_PERCENT, 6);
+    CHECK_EQ(MANET_FEC_BITS_AVAILABLE, 6);
+    CHECK_EQ(MANET_FEC_PERCENT, 2);
 
     /* Sanity: the address map's documented capacities */
     CHECK_EQ(MANET_ADDR_HANDHELD_MAX - MANET_ADDR_HANDHELD_MIN + 1, 159);

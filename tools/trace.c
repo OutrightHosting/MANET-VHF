@@ -55,6 +55,7 @@ int main(void)
             manet_pdu_t voice;
             memset(&voice, 0, sizeof voice);
             voice.hdr.src  = 0x01u;
+            voice.hdr.prev = 0x01u;
             voice.hdr.dst  = 0xC0u;          /* the talkgroup */
             voice.hdr.type = MANET_FRAME_VOICE;
             voice.hdr.seq  = seq++;
@@ -73,7 +74,7 @@ int main(void)
          * dedup, which are not written yet. */
         for (k = 1u; k < NODES; k++) {
             if (tx_valid[k - 1u]) {
-                (void)manet_sched_relay(&sched[k], &tx[k - 1u], s);
+                (void)manet_sched_relay(&sched[k], &tx[k - 1u], s, (manet_addr_t)(k + 1u));
             }
         }
 
