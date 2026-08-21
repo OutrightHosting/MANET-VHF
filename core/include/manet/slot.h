@@ -184,4 +184,47 @@ void manet_sched_flush(manet_sched_t *s);
 /* How many entries are currently queued. For tests and instrumentation. */
 size_t manet_sched_depth(const manet_sched_t *s);
 
+/* ---------------------------------------------------------- origination phase --
+
+   Which slot of the frame a radio BEGINS a talkspurt in. Distinct from relaying:
+   a relay transmits in the slot after it received, which the scheduler above owns.
+   This is where a stream enters the network.
+
+   It lived only in the Python harness until now, which by ADR-0006's own rule meant
+   the most fundamental MAC decision in the system was not built.
+
+   THE PIGEONHOLE, STATED PLAINLY. There are MANET_SLOTS_PER_FRAME phases and more
+   radios than that, so distinct phases for every radio are IMPOSSIBLE — with four
+   phases and twelve radios roughly one talker pair in five collides, and no hash
+   fixes that. What matters is narrower and achievable: no two radios talking AT THE
+   SAME TIME may share a phase, and there are at most MANET_SLOTS_PER_FRAME of those.
+
+   Two radios that share a phase and key up together originate in the same slot every
+   frame, permanently — not a glancing collision but a standing one. Under barrage
+   relaying that is measured as one stream at 95% and the other at 0%. */
+
+/* This radio's default phase: a hash of its address, so every neighbour can derive it
+   from `src` in a header with no signalling. */
+uint8_t manet_voice_phase(manet_addr_t addr);
+
+/*
+ * The phase to actually originate in, given which phases are already carrying someone
+ * else's stream. `occupied` is a bitmask, bit n set meaning phase n is in use by
+ * another source — build it from what this radio has recently heard.
+ *
+ * Returns the default phase when it is free. Otherwise walks forward deterministically
+ * to the first free one, so two radios resolving the same collision from the same
+ * information reach the same answer without exchanging anything.
+ *
+ * When every phase is occupied the network is at its structural limit and the default
+ * is returned: there is nowhere to move to, and pretending otherwise would hide the
+ * capacity ceiling rather than report it. Callers wanting to know should test
+ * manet_voice_phase_free().
+ */
+uint8_t manet_voice_phase_avoiding(manet_addr_t addr, uint32_t occupied);
+
+/* Whether any phase is free at all. False means the frame is saturated with concurrent
+   talkers and a new talkspurt has no collision-free slot to start in. */
+bool manet_voice_phase_free(uint32_t occupied);
+
 #endif /* MANET_SLOT_H */

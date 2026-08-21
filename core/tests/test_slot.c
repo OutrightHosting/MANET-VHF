@@ -297,8 +297,106 @@ static void test_reuse_distance_equals_slot_count(void)
     CHECK_EQ(spf, MANET_SLOTS_PER_FRAME);
 }
 
+/*
+ * Origination phase. The property under test is NOT that every address gets a distinct
+ * phase — with four phases and twelve radios that is arithmetically impossible, and
+ * backlog B-04's original done-test asked for it anyway. It is that concurrent talkers
+ * can always be separated up to the structural limit.
+ */
+static void test_voice_phase_is_in_range_and_stable(void)
+{
+    unsigned a;
+    for (a = 0u; a < 256u; a++) {
+        uint8_t p = manet_voice_phase((manet_addr_t)a);
+        CHECK(p < (uint8_t)MANET_SLOTS_PER_FRAME);
+        CHECK_EQ(p, manet_voice_phase((manet_addr_t)a));   /* pure */
+    }
+}
+
+static void test_voice_phase_spreads_consecutive_addresses(void)
+{
+    /* A group issued sequential serial numbers must not land on sequential phases.
+     * Counts every phase over the address space and requires no phase to take more
+     * than 40% of it — a plain multiply-and-shift fails this, which is why the
+     * implementation avalanches. */
+    size_t count[MANET_SLOTS_PER_FRAME];
+    unsigned a, i;
+    for (i = 0u; i < (unsigned)MANET_SLOTS_PER_FRAME; i++) {
+        count[i] = 0u;
+    }
+    for (a = 1u; a <= 255u; a++) {
+        count[manet_voice_phase((manet_addr_t)a)]++;
+    }
+    for (i = 0u; i < (unsigned)MANET_SLOTS_PER_FRAME; i++) {
+        CHECK(count[i] > 0u);
+        CHECK(count[i] * 10u < 255u * 4u);
+    }
+}
+
+static void test_voice_phase_avoids_occupied(void)
+{
+    manet_addr_t a = (manet_addr_t)0x42;
+    uint8_t base = manet_voice_phase(a);
+    uint32_t occupied = (uint32_t)1u << base;
+    uint8_t moved = manet_voice_phase_avoiding(a, occupied);
+
+    CHECK_EQ(manet_voice_phase_avoiding(a, 0u), base);   /* free -> keep default */
+    CHECK(moved != base);                                  /* taken -> move */
+    CHECK((occupied & ((uint32_t)1u << moved)) == 0u);
+    CHECK(moved < (uint8_t)MANET_SLOTS_PER_FRAME);
+}
+
+static void test_voice_phase_is_deterministic_across_radios(void)
+{
+    /* Two radios resolving the same collision from the same information must reach
+     * the same answer, or they move onto each other. No signalling involved. */
+    manet_addr_t a = (manet_addr_t)0x7E;
+    uint32_t occ;
+    for (occ = 0u; occ < ((uint32_t)1u << MANET_SLOTS_PER_FRAME); occ++) {
+        CHECK_EQ(manet_voice_phase_avoiding(a, occ),
+                 manet_voice_phase_avoiding(a, occ));
+    }
+}
+
+static void test_voice_phase_reports_saturation(void)
+{
+    uint32_t all = ((uint32_t)1u << MANET_SLOTS_PER_FRAME) - 1u;
+    unsigned i;
+
+    CHECK(manet_voice_phase_free(0u));
+    CHECK(!manet_voice_phase_free(all));
+    for (i = 0u; i < (unsigned)MANET_SLOTS_PER_FRAME; i++) {
+        CHECK(manet_voice_phase_free(all & ~((uint32_t)1u << i)));
+    }
+    /* Saturated: nowhere to move, so the default comes back rather than a lie. */
+    CHECK_EQ(manet_voice_phase_avoiding((manet_addr_t)9, all),
+             manet_voice_phase((manet_addr_t)9));
+}
+
+static void test_every_phase_is_reachable_by_avoidance(void)
+{
+    /* The real requirement: whatever a radio's default, it can be steered to any free
+     * phase. This is what makes MANET_SLOTS_PER_FRAME concurrent talkers possible at
+     * all, and it is the property B-04 should have asked for. */
+    unsigned target;
+    for (target = 0u; target < (unsigned)MANET_SLOTS_PER_FRAME; target++) {
+        uint32_t occupied = (((uint32_t)1u << MANET_SLOTS_PER_FRAME) - 1u) & ~((uint32_t)1u << target);
+        unsigned a;
+        for (a = 1u; a <= 64u; a++) {
+            CHECK_EQ(manet_voice_phase_avoiding((manet_addr_t)a, occupied),
+                     (uint8_t)target);
+        }
+    }
+}
+
 void test_slot_all(void)
 {
+    test_voice_phase_is_in_range_and_stable();
+    test_voice_phase_spreads_consecutive_addresses();
+    test_voice_phase_avoids_occupied();
+    test_voice_phase_is_deterministic_across_radios();
+    test_voice_phase_reports_saturation();
+    test_every_phase_is_reachable_by_avoidance();
     test_timing();
     test_relay_is_next_slot();
     test_relay_crosses_frame_boundary();

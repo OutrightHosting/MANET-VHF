@@ -294,3 +294,51 @@ size_t manet_sched_depth(const manet_sched_t *s)
     }
     return n;
 }
+
+/* ---------------------------------------------------------- origination phase -- */
+
+/*
+ * Avalanche mix, same construction as nama.c. A plain multiply-and-shift is not enough
+ * here: consecutive addresses must not land on consecutive phases, or a group issued
+ * sequential radios gets a pathological assignment on day one.
+ */
+static uint32_t phase_mix32(uint32_t x)
+{
+    x ^= x >> 16;
+    x *= 0x7FEB352DuL;
+    x ^= x >> 15;
+    x *= 0x846CA68BuL;
+    x ^= x >> 16;
+    return x;
+}
+
+uint8_t manet_voice_phase(manet_addr_t addr)
+{
+    return (uint8_t)(phase_mix32((uint32_t)addr) % (uint32_t)MANET_SLOTS_PER_FRAME);
+}
+
+bool manet_voice_phase_free(uint32_t occupied)
+{
+    uint32_t all = (MANET_SLOTS_PER_FRAME >= 32)
+                 ? 0xFFFFFFFFu
+                 : (((uint32_t)1u << MANET_SLOTS_PER_FRAME) - 1u);
+    return (occupied & all) != all;
+}
+
+uint8_t manet_voice_phase_avoiding(manet_addr_t addr, uint32_t occupied)
+{
+    uint8_t base = manet_voice_phase(addr);
+    unsigned i;
+
+    if (!manet_voice_phase_free(occupied)) {
+        return base;   /* saturated — report the ceiling rather than hide it */
+    }
+
+    for (i = 0; i < (unsigned)MANET_SLOTS_PER_FRAME; i++) {
+        uint8_t ph = (uint8_t)((base + i) % (unsigned)MANET_SLOTS_PER_FRAME);
+        if ((occupied & ((uint32_t)1u << ph)) == 0u) {
+            return ph;
+        }
+    }
+    return base;   /* unreachable given the check above; kept total */
+}

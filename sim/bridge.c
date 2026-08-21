@@ -345,6 +345,21 @@ EXPORT int mb_slot_is_control(unsigned long long n)
     return manet_slot_is_control((uint64_t)n) ? 1 : 0;
 }
 
+EXPORT unsigned mb_voice_phase(unsigned addr)
+{
+    return (unsigned)manet_voice_phase((manet_addr_t)addr);
+}
+
+EXPORT unsigned mb_voice_phase_avoiding(unsigned addr, unsigned occupied)
+{
+    return (unsigned)manet_voice_phase_avoiding((manet_addr_t)addr, (uint32_t)occupied);
+}
+
+EXPORT int mb_voice_phase_free(unsigned occupied)
+{
+    return manet_voice_phase_free((uint32_t)occupied) ? 1 : 0;
+}
+
 EXPORT unsigned long long mb_slot_next_voice(unsigned long long n)
 {
     return (unsigned long long)manet_slot_next_voice((uint64_t)n);

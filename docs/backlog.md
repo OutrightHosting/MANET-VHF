@@ -71,12 +71,47 @@ an instrument that can now report a failure.
 
 ## P3 — Defects in the build
 
-- [ ] **B-04 · `phase_of_addr` collides.** A randomly chosen pair of talkers has a real chance
-      of landing on the same voice phase and delivering 0% to everyone — **in either relay
-      mode**. Caps concurrent calls independently of [ADR-0011](decisions/0011-barrage-relaying.md)
-      and is why ADR-0008's four-call claim fails twice over. **Done when:** phase assignment
-      is collision-free across the address space for the supported network size, with a test.
-      *Half a day.*
+- [x] **B-04 · `phase_of_addr` collides.** ✅ **Fixed 2026-08-21, and the done-test as
+      originally written was unachievable.** It asked for phase assignment "collision-free
+      across the address space", which is arithmetically impossible: there are
+      `MANET_SLOTS_PER_FRAME` phases and more radios than that, so ~20–23% of talker pairs
+      must share a phase by pigeonhole and no hash changes it. The achievable requirement is
+      narrower — **no two radios talking at the same time may share a phase**, of which there
+      are at most 4. Delivered:
+      - `manet_voice_phase()` and `manet_voice_phase_avoiding()` in **the C core**, where
+        they belong. The whole mechanism was harness-only, which by
+        [ADR-0006](decisions/0006-c-core-python-harness.md)'s rule meant the most
+        fundamental MAC decision in the system — when a talker transmits — was not built.
+      - Collision avoidance walks forward deterministically, so two radios resolving the
+        same collision from the same information agree without exchanging anything.
+      - Saturation is reported rather than hidden (`manet_voice_phase_free`).
+      - 803 new checks.
+- [x] **B-04b · Barrage muted its own talker.** ✅ **Fixed 2026-08-21.** Found by the
+      adversarial stress test, not by me. The `BARRAGE_RELAY` branch returned before
+      consulting the `busy` guard that `world.py` already documented, so a radio adjacent to
+      another talker's flood relayed that stream **in exactly its own origination phase,
+      every frame**, and the scheduler then refused its own voice. Not degradation —
+      **lockout**: 9.8% PTT success on an 18-radio ridge, and at 48 radios the verifier
+      measured a talker keying up **0 times in 500 attempts over 300 s**. A relaying radio
+      now yields that slot, but **only while it is itself an active talker** — the
+      unconditional form failed the mobility criterion, because on a sparse chain the single
+      forward relay abstains and the frame dies there.
+
+      | | PTT success | delivery | speech through |
+      |---|---|---|---|
+      | before | **9.8%** | 64.4% | 6.3% |
+      | after | **100%** | 11.0% | 11.0% |
+
+      **The lockout is fixed; concurrent calls still are not.** The second talker can now
+      key up and nobody hears it, because one flood still saturates every slot in every
+      neighbourhood — literature review §103, which [ADR-0011](decisions/0011-barrage-relaying.md)
+      concedes it does not fix. That is **W-04**.
+- [ ] **B-04c · `Simulation.delivery()` inflates a locked-out talker's score.** It divides by
+      payloads that reached the air, so refused originations vanish from the denominator —
+      a muted radio can read 64% delivered. `origination_attempts` now exists and PTT success
+      is measurable, but the gate and scenarios do not report it. **Done when:** every
+      delivery figure is quoted alongside PTT success, or multiplied into a speech-through
+      number. *Hours.*
 - [ ] **B-05 · Neighbour table overflows at 24+ co-located nodes.** `MANET_MAX_NEIGHBOURS` is
       16; the scale agent had to avoid dense clusters because of it. **Done when:** the
       overflow behaviour is defined and tested — graceful degradation, not silent loss.

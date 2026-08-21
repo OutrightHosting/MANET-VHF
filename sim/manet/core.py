@@ -73,6 +73,9 @@ _SIGS = {
     "mb_dedup_expire": (_UL, [_P, _ULL, _ULL]),
     "mb_nama_priority": (_UL, [_U, _ULL]),
     "mb_nama_wins": (ctypes.c_int, [_P, _ULL]),
+    "mb_voice_phase": (_U, [_U]),
+    "mb_voice_phase_avoiding": (_U, [_U, _U]),
+    "mb_voice_phase_free": (ctypes.c_int, [_U]),
     "mb_nama_next_win": (ctypes.c_int, [_P, _ULL, _U, ctypes.POINTER(_ULL)]),
     "mb_nama_contenders": (_UL, [_P]),
     "mb_nama_wins_among": (ctypes.c_int, [_U, _ULL, _U8P, _UL]),
@@ -343,3 +346,18 @@ class Dedup:
 
     def expire(self, slot, age):
         return int(_lib.mb_dedup_expire(self.buf, slot, age))
+
+
+def voice_phase(addr):
+    """core/src/slot.c — the phase a radio originates a talkspurt in."""
+    return int(_lib.mb_voice_phase(addr))
+
+
+def voice_phase_avoiding(addr, occupied_mask):
+    """As above, but stepping off any phase already carrying another source."""
+    return int(_lib.mb_voice_phase_avoiding(addr, occupied_mask))
+
+
+def voice_phase_free(occupied_mask):
+    """False when every phase carries a talker — the concurrent-call ceiling."""
+    return bool(_lib.mb_voice_phase_free(occupied_mask))

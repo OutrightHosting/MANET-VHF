@@ -13,6 +13,7 @@ from .core import (
     BEACON, VOICE, PRIO_SIGNALLING, PRIO_VOICE, BROADCAST, CONFIG,
     Dedup, MprSet, NeighbourTable, Pdu, Scheduler,
 )
+from .core import voice_phase
 from .mobility import Static
 from .radio import Channel
 
@@ -38,6 +39,11 @@ class Node:
         # Every phase on which this radio has recently heard voice. It must keep its ears
         # free on all of them, not only the most recent, or a radio carrying one
         # conversation goes deaf to a second.
+        self.last_origination_attempt = None
+        # PTT success. delivery() divides by payloads that reached the air, so a talker
+        # locked out of the channel has its refused payloads vanish from the denominator
+        # and its delivery percentage INFLATED. This counts the attempts.
+        self.origination_attempts = 0
         self.rx_phases = {}
         # Which ORIGIN each receive phase carried. Hearing several neighbours is normal
         # and not a reason to protect ears; hearing two different conversations is.
@@ -129,6 +135,10 @@ class Simulation:
     NAMA_RELAY = True
     PROTECT_TALKER_PHASE = False
     BARRAGE_RELAY = True
+    # Slots after an origination attempt during which a radio still guards its own voice
+    # phase. One frame is too short — PTT leaves gaps between payloads — and permanent is
+    # too long, since every radio would then protect a phase it never uses.
+    TALKER_MEMORY = 16
     DESIGNATED_RELAY = False
 
     def _schedule_beacons(self, slot):
@@ -204,10 +214,14 @@ class Simulation:
         return self.phase_of_addr(node.addr)
 
     def phase_of_addr(self, addr):
-        """The voice phase belonging to an address. Derivable by any radio that can
-        read a header, which is what lets relays avoid the talker's slot."""
-        h = (addr * 0x9E3779B1) & 0xFFFFFFFF
-        return (h >> 16) % self.cfg.slots_per_frame
+        """
+        The voice phase belonging to an address.
+
+        Now answered by core/src/slot.c rather than reimplemented here. It was harness-only
+        until B-04, which by ADR-0006's rule meant the most fundamental MAC decision in the
+        system -- when a talker transmits -- was not built.
+        """
+        return voice_phase(addr)
 
     def _schedule_voice(self, slot, active):
         if not active:
@@ -220,6 +234,8 @@ class Simulation:
         pdu = Pdu(src=n.addr, prev=n.addr, dst=0xC0, type=VOICE,
                   seq=n.seq & 0xFF, prio=PRIO_VOICE, ttl=self.cfg.voice_ttl)
         n.seq = (n.seq + 1) & 0xFF
+        n.last_origination_attempt = slot
+        n.origination_attempts += 1
         if n.sched.originate(pdu, slot) == 0:
             # Register our own payload in our own dedup table. Without this the echo
             # coming back off the relays looks like a brand new frame, and the talker
@@ -393,6 +409,30 @@ class Simulation:
             # exactly as written and exactly as TrellisWare TSM and Glossy implement it.
             # The election existed only to stop simultaneous relays jamming each other.
             if self.BARRAGE_RELAY:
+                # NEVER RELAY IN YOUR OWN ORIGINATION PHASE.
+                #
+                # Without this a radio adjacent to another talker's flood relays that
+                # stream in exactly the slot it needs for its own voice, every frame, and
+                # the scheduler then refuses its origination. It does not degrade the
+                # radio, it MUTES it: measured at 48 nodes, one talker keyed up 0 times in
+                # 500 attempts over 300 s while the other delivered 100%.
+                #
+                # The election never had this failure because its slot search consulted
+                # `busy` (the guard immediately above) and its jitter acted as accidental
+                # protection. The barrage branch returned before reaching either.
+                #
+                # Abstaining is nearly free here and that is the whole point of barrage:
+                # 3.7-9.4 radios carry each payload concurrently, so one standing down
+                # costs a copy. Being muted costs the call.
+                # ...but only while this radio is actually a talker. A radio with nothing
+                # to say has no origination to protect, and yielding for it is expensive:
+                # on a sparse chain the single forward relay abstains and the frame dies
+                # there. Measured — the unconditional form failed the mobility criterion.
+                talking = (rx.last_origination_attempt is not None
+                           and (slot - rx.last_origination_attempt) < self.TALKER_MEMORY)
+                if talking and (slot + 1) % spf == self.phase_of_addr(rx.addr):
+                    self.why["yielded own voice phase"] += 1
+                    return
                 if rx.sched.relay(pdu, slot, rx.addr) == 0:
                     rx.relayed += 1
                     self.why["relayed"] += 1
