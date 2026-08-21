@@ -149,6 +149,17 @@
 #define MANET_FEC_PERCENT \
     ((MANET_FEC_BITS_AVAILABLE * 100L) / (MANET_HEADER_BITS + MANET_VOICE_PAYLOAD_BITS))
 
+/* Largest PDU that can ride in one slot: everything on air except the sync word.
+ * Header and FEC are carried inside this. */
+#define MANET_MAX_PDU_BITS  (MANET_SLOT_ONAIR_BITS - MANET_SYNC_BITS)
+#define MANET_MAX_PDU_BYTES ((size_t)((MANET_MAX_PDU_BITS + 7) / 8))
+
+/* How many slots ahead the transmit scheduler can hold work. Pipelining needs one;
+ * the rest is headroom for priority queueing (Addendum 01 s5). */
+#ifndef MANET_SCHED_DEPTH
+#define MANET_SCHED_DEPTH 4u
+#endif
+
 /* ------------------------------------------------------- Budget enforcement -- */
 
 MANET_STATIC_ASSERT(MANET_SLOTS_PER_FRAME >= 2, "pipelining needs at least 2 slots");
@@ -177,5 +188,9 @@ MANET_STATIC_ASSERT(MANET_ADDR_RESERVED_MAX < MANET_ADDR_BROADCAST,     "address
 MANET_STATIC_ASSERT(MANET_PRIO_BITS >= 2u, "four priority classes are mandated by Addendum 01 s5");
 MANET_STATIC_ASSERT(MANET_TYPE_BITS >= 4u, "frame type space must leave room to grow");
 MANET_STATIC_ASSERT(MANET_HEADER_BITS <= 64, "header implausibly large; check field widths");
+MANET_STATIC_ASSERT(MANET_MAX_PDU_BITS > MANET_HEADER_BITS, "no room for a PDU after sync");
+MANET_STATIC_ASSERT(MANET_SCHED_DEPTH >= 2u, "pipelining needs to schedule at least one slot ahead");
+MANET_STATIC_ASSERT((MANET_FRAME_DURATION_US % MANET_SLOTS_PER_FRAME) == 0,
+                    "frame does not divide evenly into slots");
 
 #endif /* MANET_CONFIG_H */

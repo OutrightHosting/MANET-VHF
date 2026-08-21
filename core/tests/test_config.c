@@ -7,6 +7,17 @@
  */
 void test_config_all(void)
 {
+    /* Structural invariants, true of any configuration. */
+    CHECK_EQ(MANET_SLOT_DURATION_US * MANET_SLOTS_PER_FRAME, MANET_FRAME_DURATION_US);
+    CHECK_EQ(MANET_BURST_US + MANET_GUARD_US, MANET_SLOT_DURATION_US);
+    CHECK(MANET_SLOT_ONAIR_BITS < MANET_SLOT_RAW_BITS);
+    CHECK(MANET_FEC_BITS_AVAILABLE > 0);
+    CHECK_EQ(MANET_HEADER_BYTES, (MANET_HEADER_BITS + 7) / 8);
+
+#if (MANET_SLOTS_PER_FRAME == 4L) && (MANET_GROSS_BITRATE_BPS == 19200L) \
+    && (MANET_VOICE_PAYLOAD_BITS == 192L) && (MANET_ADDR_BITS == 8u) && (MANET_SEQ_BITS == 8u)
+    /* Straw-man values below. Skipped when the configuration is swept — see
+     * tools/budget.sh and `make test-3slot`. */
     /* Frame structure */
     CHECK_EQ(MANET_SLOT_DURATION_US, 15000);
     CHECK_EQ(MANET_GUARD_US, 1245);
@@ -27,4 +38,5 @@ void test_config_all(void)
     CHECK_EQ(MANET_ADDR_GATEWAY_MAX - MANET_ADDR_GATEWAY_MIN + 1, 32);
     CHECK_EQ(MANET_ADDR_GROUP_MAX - MANET_ADDR_GROUP_MIN + 1, 48);
     CHECK_EQ(MANET_ADDR_RESERVED_MAX - MANET_ADDR_RESERVED_MIN + 1, 15);
+#endif
 }

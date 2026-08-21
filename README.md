@@ -23,7 +23,7 @@ definition, the decisions already taken, and the questions still open.
 
 ```
 core/       protocol core — C99, freestanding. The code that ships.
-              addr, frame built; slot next
+              addr, frame, slot built; neighbour and mpr next
 sim/        Phase 0 simulation harness — Python, drives core/ via CFFI
 firmware/   Phase 1 STM32F4 target — empty until Phase 0 passes
 tools/      budget sweep and other Phase 0 instrumentation
@@ -51,6 +51,7 @@ make test
 
 ```
 make test           unit tests, host build
+make test-3slot     the whole suite rebuilt at 3 x 20 ms, the leading OQ-0002 escape
 make budget         slot budget across candidate frame structures (OQ-0002)
 make freestanding   assert the core pulls in no libc beyond mem*
 make arm            compile the core for cortex-m4; skips if the toolchain is absent

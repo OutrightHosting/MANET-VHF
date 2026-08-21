@@ -13,6 +13,8 @@ int main(void)
     test_addr_all();
     printf("frame\n");
     test_frame_all();
+    printf("slot\n");
+    test_slot_all();
 
     printf("\n%d checks, %d failures\n", manet_test_checks, manet_test_failures);
     return manet_test_failures == 0 ? 0 : 1;

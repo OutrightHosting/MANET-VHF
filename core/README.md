@@ -44,7 +44,7 @@ Intended modules, in dependency order:
 |---|---|
 | `addr` | ✅ Address space, range predicates (individual / gateway / group / broadcast / reserved) |
 | `frame` | ✅ On-air header pack/unpack — source, destination, type, sequence, TTL, priority |
-| `slot` | TDMA slot state machine, frame timing, pipelining rule (ADR-0002) |
+| `slot` | ✅ TDMA slot state machine, frame timing, pipelining rule (ADR-0002) |
 | `queue` | Priority queue, four classes, pre-emption policy (Addendum 01 §5) |
 | `neighbour` | Directly-heard neighbour table with link quality, ageing |
 | `mpr` | Multipoint relay selection over the two-hop neighbourhood (ADR-0003) |
@@ -52,7 +52,7 @@ Intended modules, in dependency order:
 | `dispatch` | Receive path — switch on frame type. The **only** place that knows what a payload is |
 | `node` | Composition of the above; the object the platform instantiates |
 
-`addr` and `frame` are built (✅). `slot` is next. The header format is the one artefact here that
+`addr`, `frame` and `slot` are built (✅). `neighbour` and `mpr` are next. The header format is the one artefact here that
 cannot be changed after radios ship — see [OQ-0012](../docs/open-questions.md#oq-0012).
 
 `config.h` holds the compile-time parameters and computes the slot budget from them, enforced by
@@ -64,6 +64,7 @@ than something you argue about.
 
 ```
 make test           unit tests, host build
+make test-3slot     the whole suite rebuilt at 3 x 20 ms, the leading OQ-0002 escape
 make budget         slot budget across candidate frame structures (OQ-0002)
 make freestanding   assert the core pulls in no libc beyond mem*
 make arm            compile the core for cortex-m4; skips if the toolchain is absent

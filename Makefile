@@ -9,7 +9,13 @@ BUILD    := build
 CSTD     := -std=c99
 WARN     := -Wall -Wextra -Werror -pedantic -Wshadow -Wconversion -Wsign-conversion
 INC      := -Icore/include -Icore/src
-CFLAGS   := $(CSTD) $(WARN) $(INC) $(EXTRA_CFLAGS)
+
+# The stack protector calls __stack_chk_fail, which is libc runtime the bare-metal
+# target does not have — the arm build would fail to link. Standard for freestanding
+# code, and `make freestanding` is what caught it when slot.c grew a PDU buffer.
+FREE     := -fno-stack-protector
+
+CFLAGS   := $(CSTD) $(WARN) $(INC) $(FREE) $(EXTRA_CFLAGS)
 
 CORE_SRC := $(wildcard core/src/*.c)
 CORE_OBJ := $(patsubst core/src/%.c,$(BUILD)/core/%.o,$(CORE_SRC))
@@ -18,7 +24,7 @@ TEST_OBJ := $(patsubst core/tests/%.c,$(BUILD)/tests/%.o,$(TEST_SRC))
 
 ARM_CC   := arm-none-eabi-gcc
 
-.PHONY: all test budget freestanding arm clean
+.PHONY: all test test-3slot budget freestanding arm clean
 
 all: test
 
@@ -38,6 +44,14 @@ $(BUILD)/core/%.o: core/src/%.c
 $(BUILD)/tests/%.o: core/tests/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -Icore/tests -c -o $@ $<
+
+# Rebuild and run the whole suite against the leading escape route from OQ-0002.
+# Proves the core is genuinely parameterised rather than quietly assuming four slots —
+# which matters, because the simulator sweeps it.
+test-3slot:
+	@$(MAKE) -s clean
+	@$(MAKE) -s test EXTRA_CFLAGS="-DMANET_SLOTS_PER_FRAME=3L" BUILD=$(BUILD)
+	@$(MAKE) -s clean
 
 # --------------------------------------------------------------------- budget --
 
@@ -81,7 +95,7 @@ arm:
 	for src in $(CORE_SRC); do \
 	    obj=$(BUILD)/arm/$$(basename $$src .c).o; \
 	    echo "$(ARM_CC) -c $$src"; \
-	    $(ARM_CC) $(CSTD) $(WARN) $(INC) \
+	    $(ARM_CC) $(CSTD) $(WARN) $(INC) $(FREE) \
 	        -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 \
 	        -ffreestanding -Os -c -o $$obj $$src || exit 1; \
 	done; \
