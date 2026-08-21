@@ -27,6 +27,7 @@ yet in any of them.
 | [OQ-0014](#oq-0014) | Authenticating command frames on an infrastructure-free mesh | Phase 3 (design now) | Whether radio disable can safely exist at all | Open |
 | [OQ-0015](#oq-0015) | Late entry — joining a call already in progress | **Phase 0** | Header/framing; costs bits that do not exist | Open |
 | [OQ-0016](#oq-0016) | Confirmed transactions across a moving multi-hop path | Phase 0 | Every confirmed feature in the set | Open |
+| [OQ-0017](#oq-0017) | Concurrent call capacity, clustered vs chained | **Phase 0** | Feature parity with DMR; the 3-vs-4 slot decision | Open |
 
 ---
 
@@ -422,3 +423,76 @@ service against voice.
 Note the architecture is already right for this: transaction state is endpoint state and lives in
 the control payload, not the header, so this costs **zero header bits**. See
 [the feature set](feature-set.md#confirmed-operations).
+
+## OQ-0017
+### Concurrent call capacity, clustered vs chained
+
+Neither the brief nor the addendum states a concurrent call requirement, and it is not derivable
+from anything already written. It needs to be, because the answer differs by an order of magnitude
+between two topologies the same group moves through in a single afternoon.
+
+### Clustered — all leaders in direct range
+
+No relaying (every MPR set is empty), so the channel is a single broadcast domain, exactly like a
+repeater without the repeater. Slots are independent and each can carry a separate call.
+
+| Structure | Concurrent calls | Spectral efficiency |
+|---|---|---|
+| DMR Tier 2 repeater | 2 in 12.5 kHz | 1 call per 6.25 kHz |
+| 4 × 15 ms in 25 kHz | 4 | 1 call per 6.25 kHz — **equal to DMR** |
+| 3 × 20 ms in 25 kHz | 3 | 1 call per 8.33 kHz — **worse than DMR** |
+
+**This is a cost of the 3-slot escape route from [OQ-0002](#oq-0002) that was not previously
+stated.** Dropping to three slots costs a concurrent call in the clustered case and takes the
+system below DMR's spectral efficiency. It belongs alongside the spatial-reuse cost in
+[OQ-0013](#oq-0013) when that decision is made.
+
+### Chained — group dispersed, relaying active
+
+Capacity collapses toward **one call**, and this is a property of multi-hop relaying rather than a
+defect in this design.
+
+Under slot pipelining a single call does not occupy one slot — it occupies *every* slot, at
+different points along the chain. In a chain with N slots, steady state has nodes 0, N, 2N…
+transmitting in slot 0; nodes 1, N+1… in slot 1; and so on. Every slot is busy at every point on
+the chain, all of it carrying the same conversation. There is nothing left for a second one.
+
+This is the well-known 1/N throughput scaling of multi-hop networks. Every mesh product has it.
+
+### The comparison that actually matters
+
+The instinct is to compare against a DMR repeater's two slots, but that is not the alternative on
+offer where this product is used:
+
+| Situation | DMR today | This system |
+|---|---|---|
+| At the meeting point (licensed fixed sites) | 2 calls via repeater | 3–4 calls, or bridge to the existing repeater via a gateway |
+| Off-site, group clustered | 1 call, simplex | 3–4 calls |
+| Off-site, group dispersed | **Nothing works** — this is the problem the product exists to solve | 1 call, reaching the whole group |
+
+Off-site in simplex a DMR handset carries one conversation, to whoever happens to be in earshot. So
+the dispersed case is not a capacity regression against current practice; it is a coverage
+improvement at equal capacity.
+
+That is an argument for the design, not a reason to leave the question unanswered.
+
+### Can concurrency be bought back in the chained case?
+
+Probably, and the latency budget says there is room. Interleaving two calls through the same slot
+structure halves each one's hop rate — a call advances one hop every two slots instead of every
+slot. At 3 × 20 ms that is 40 ms per hop, so a 5-hop chain resolves in 200 ms against the 300 ms
+criterion. It still passes.
+
+So the answer is likely "two concurrent relayed calls, at a latency cost that the budget can
+absorb" rather than a hard one. But **no mechanism for this has been designed**, and it interacts
+with [OQ-0009](#oq-0009) (how a node acquires the right to originate at all) and
+[OQ-0004](#oq-0004) (where control traffic sits). Do not assume it until it is simulated.
+
+### What Phase 0 must produce
+
+1. Concurrent call capacity as a function of topology, from full cluster to worst-case chain, for
+   both 3 and 4 slot structures.
+2. Whether interleaved concurrent relayed calls work, and what they cost in latency and
+   reconvergence.
+3. A stated, defensible capacity figure for each — because "how many people can talk at once" is
+   the first question any operator asks, and the honest answer is currently unknown.
