@@ -349,3 +349,19 @@ EXPORT unsigned long long mb_slot_next_voice(unsigned long long n)
 {
     return (unsigned long long)manet_slot_next_voice((uint64_t)n);
 }
+
+EXPORT int mb_nama_wins_among(unsigned self, unsigned long long ctx,
+                              const unsigned char *others, unsigned long n)
+{
+    manet_addr_t buf[MANET_MAX_NEIGHBOURS];
+    unsigned long i;
+    if (n > (unsigned long)MANET_MAX_NEIGHBOURS) { n = (unsigned long)MANET_MAX_NEIGHBOURS; }
+    for (i = 0ul; i < n; i++) { buf[i] = (manet_addr_t)others[i]; }
+    return manet_nama_wins_among((manet_addr_t)self, (uint64_t)ctx, buf, (size_t)n) ? 1 : 0;
+}
+
+EXPORT int mb_nb_reaches(const void *t, unsigned via, unsigned target)
+{
+    return manet_nb_reaches((const manet_nb_table_t *)t, (manet_addr_t)via,
+                            (manet_addr_t)target) ? 1 : 0;
+}

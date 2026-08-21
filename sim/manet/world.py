@@ -56,9 +56,9 @@ class Node:
 
 
 class Simulation:
-    def __init__(self, positions, env, budget=None, talker=0):
+    def __init__(self, positions, env, budget=None, talker=0, terrain=None):
         self.cfg = CONFIG
-        self.channel = Channel(env, budget)
+        self.channel = Channel(env, budget, terrain)
         # `positions` may be a fixed list or a Mobility. Nodes carry a current position
         # that is refreshed once per frame — at walking pace a frame is 7 cm, so there is
         # nothing to gain from updating per slot.
@@ -119,6 +119,7 @@ class Simulation:
     # per hop — at 50 ms slots that is 150 ms against 50 ms, and the latency budget
     # cannot pay it. Coverage-based suppression now handles what the stagger was for.
     STAGGER = False
+    NAMA_RELAY = True
 
     def _schedule_beacons(self, slot):
         """
@@ -236,7 +237,7 @@ class Simulation:
             got = self.channel.decode(rx.pos, txs, positions)
             if got is None:
                 # Something was in the air but nothing came out of the demodulator.
-                if any(self.channel.rx_dbm(_dist(rx.pos, positions[i])) >=
+                if any(self.channel.rx_dbm_between(rx.pos, positions[i]) >=
                        self.channel.budget.sensitivity_dbm for i, _ in txs):
                     rx.decode_failures += 1
                     self.collisions += 1
@@ -320,10 +321,25 @@ class Simulation:
             # more than the deafness it avoids.
             sources = {rx.rx_sources.get(ph) for ph in recent}
             busy = (recent - {slot % spf}) if len(sources) > 1 else set()
-            for attempt in range(rank, rank + spf * 2):
-                if ((slot + attempt + 1) % spf) in busy:
+            # Who relays, when several could. Four radios on a hilltop all hear the valley
+            # below, all correctly conclude they reach somewhere the sender does not, and
+            # all fire in the same slot — measured at 1.5% delivery through the hill.
+            # Ranking by link quality separates three of them and reached 49%. NAMA
+            # separates all of them, because it already guarantees exactly one winner
+            # within two hops, which is exactly the contention here.
+            # The radios actually in contention are those that also heard this frame —
+            # our neighbours that are also the sender's neighbours — not everyone within
+            # two hops.
+            mine = set(rx.nb.symmetric())
+            contenders = [a for a in mine if rx.nb.reaches_addr(pdu.prev, a)] or list(mine)
+
+            for attempt in range(rank, rank + spf * 4):
+                target = slot + attempt
+                if ((target + 1) % spf) in busy:
                     continue
-                if rx.sched.relay(pdu, slot + attempt, rx.addr) == 0:
+                if self.NAMA_RELAY and not rx.nb.nama_wins_among(target + 1, contenders):
+                    continue
+                if rx.sched.relay(pdu, target, rx.addr) == 0:
                     rx.relayed += 1
                     break
 

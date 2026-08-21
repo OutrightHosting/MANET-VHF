@@ -52,6 +52,19 @@ uint32_t manet_nama_priority(manet_addr_t node, uint64_t context);
  */
 bool manet_nama_wins(const manet_nb_table_t *t, uint64_t context);
 
+/*
+ * The same election, but among a NAMED set of contenders rather than the whole two-hop
+ * neighbourhood.
+ *
+ * Contending against everyone within two hops is right for channel access, where any of
+ * them could transmit. It is wrong for deciding which radio relays a particular frame:
+ * the only radios in contention are the handful that also heard it and also reach
+ * somewhere new. Electing among twelve when four are contending means waiting roughly
+ * one slot in twelve instead of one in five — measured as 696 ms per hop against 150 ms.
+ */
+bool manet_nama_wins_among(manet_addr_t self, uint64_t context,
+                           const manet_addr_t *others, size_t n);
+
 /* The next context at or after `from` that this radio wins. Bounded by `limit` contexts;
  * returns false if it wins none of them, which means the neighbourhood is larger than the
  * search window and the caller should widen it. */

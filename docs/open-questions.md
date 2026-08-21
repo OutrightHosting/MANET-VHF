@@ -845,8 +845,19 @@ rather than a model of it — exactly the property
 > creates it. The reach and delivery figures are not, and inherit whatever this model gets
 > wrong.
 >
-> This is now the blocking item for Phase 0 being meaningful, ahead of the slot budget. A
-> per-link obstruction term is not difficult; it is simply never been built.
+> **Built 2026-08-21.** `sim/manet/terrain.py` — a height field, and ITU-R P.526 single
+> knife-edge diffraction sampled along the ground profile between each pair of radios.
+>
+> It changes what the simulation is about. A hill 80 m high with groups either side, 2.4 km
+> apart: **valley to valley −131 dBm, blocked**; either valley to the hilltop **−106 dBm,
+> heard**. Vegetation cannot do that — it saturates at 11 dB. A ridge does it with 23 dB and
+> a bit of distance.
+>
+> And it is the product, stated as geometry: two groups that cannot hear each other, and
+> anyone standing between them on high ground who can hear both. A repeater on a hilltop,
+> except nobody sited it, nobody licensed it, and it is whoever happens to be up there.
+> `sim/scenarios/hill.py` measures it, including the control that matters — **remove the
+> hilltop group and the network severs completely**, 4 of 8 reachable and nothing delivered.
 
 
 

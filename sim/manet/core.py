@@ -63,6 +63,7 @@ _SIGS = {
     "mb_nb_should_relay_for": (ctypes.c_int, [_P, _U]),
     "mb_nb_symmetric": (_UL, [_P, _U8P, _UL]),
     "mb_nb_two_hop": (_UL, [_P, _U8P, _UL]),
+    "mb_nb_reaches": (ctypes.c_int, [_P, _U, _U]),
     "mb_nb_beacon": (_UL, [_P, _U8P, _UL, _U8P, _U8P, _UL]),
     "mb_mpr_select": (_UL, [_P, _P, _U8P, _UL]),
     "mb_mpr_covers_all": (ctypes.c_int, [_P, _P]),
@@ -74,6 +75,7 @@ _SIGS = {
     "mb_nama_wins": (ctypes.c_int, [_P, _ULL]),
     "mb_nama_next_win": (ctypes.c_int, [_P, _ULL, _U, ctypes.POINTER(_ULL)]),
     "mb_nama_contenders": (_UL, [_P]),
+    "mb_nama_wins_among": (ctypes.c_int, [_U, _ULL, _U8P, _UL]),
 }
 
 for _name, (_res, _args) in _SIGS.items():
@@ -267,6 +269,9 @@ class NeighbourTable:
         n = int(_lib.mb_nb_symmetric(self.buf, out, CONFIG.max_neighbours))
         return [out[i] for i in range(min(n, CONFIG.max_neighbours))]
 
+    def reaches_addr(self, via, target):
+        return bool(_lib.mb_nb_reaches(self.buf, via, target))
+
     def two_hop(self):
         out = _u8(64)
         n = int(_lib.mb_nb_two_hop(self.buf, out, 64))
@@ -275,6 +280,13 @@ class NeighbourTable:
     def nama_wins(self, context):
         """Does this radio win the channel-access election for this context?"""
         return bool(_lib.mb_nama_wins(self.buf, context))
+
+    def nama_wins_among(self, context, others):
+        """Win the election against a named set — the radios actually in contention."""
+        buf = _u8(len(others))
+        for i, a in enumerate(others):
+            buf[i] = a
+        return bool(_lib.mb_nama_wins_among(self.self_addr, context, buf, len(others)))
 
     def nama_next_win(self, start, limit=64):
         out = _ULL()

@@ -128,3 +128,22 @@ bool manet_nama_next_win(const manet_nb_table_t *t, uint64_t from, uint32_t limi
     }
     return false;
 }
+
+bool manet_nama_wins_among(manet_addr_t self, uint64_t context,
+                           const manet_addr_t *others, size_t n)
+{
+    size_t i;
+
+    if (others == NULL) {
+        return true;
+    }
+    for (i = 0u; i < n; i++) {
+        if (others[i] == self) {
+            continue;
+        }
+        if (outranks(others[i], self, context)) {
+            return false;
+        }
+    }
+    return true;
+}

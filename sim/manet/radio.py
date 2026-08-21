@@ -22,6 +22,8 @@ Anything that collapses that into "in range / out of range" cannot answer the qu
 import math
 from dataclasses import dataclass
 
+from .terrain import Flat, diffraction_db
+
 C_LIGHT = 299792458.0
 
 
@@ -141,18 +143,30 @@ class Channel:
     Otherwise it hears mush.
     """
 
-    def __init__(self, env, budget=None):
+    def __init__(self, env, budget=None, terrain=None):
         self.env = env
         self.budget = budget or LinkBudget()
+        # Terrain is what actually breaks links. Foliage attenuation saturates at about
+        # 11 dB; a ridge costs tens. Flat by default so existing scenarios are unchanged.
+        self.terrain = terrain or Flat()
         self._loss_cache = {}
 
     def rx_dbm(self, distance_m):
+        """Received power over flat ground. Kept for probes and the budget tool."""
         key = round(distance_m, 1)
         loss = self._loss_cache.get(key)
         if loss is None:
             loss = self.env.path_loss_db(key, self.budget.freq_hz)
             self._loss_cache[key] = loss
         return self.budget.eirp_dbm + self.budget.rx_offset_db - loss
+
+    def rx_dbm_between(self, a, b):
+        """Received power between two points, including terrain obstruction."""
+        d = math.hypot(a[0] - b[0], a[1] - b[1])
+        p = self.rx_dbm(d)
+        if not isinstance(self.terrain, Flat):
+            p -= diffraction_db(a, b, self.terrain, self.budget.freq_hz)
+        return p
 
     def decode(self, rx_pos, transmissions, positions):
         """
@@ -166,9 +180,7 @@ class Channel:
 
         powers = []
         for idx, payload in transmissions:
-            tx = positions[idx]
-            d = math.hypot(rx_pos[0] - tx[0], rx_pos[1] - tx[1])
-            powers.append((self.rx_dbm(d), idx, payload))
+            powers.append((self.rx_dbm_between(rx_pos, positions[idx]), idx, payload))
 
         powers.sort(key=lambda t: -t[0])
         best_dbm, best_idx, best_payload = powers[0]
