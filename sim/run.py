@@ -71,6 +71,8 @@ def main():
     print(f"      deepest topology     {d['max_hop_depth']} hops"
           f"{'' if deep_enough else f'   <- PRECONDITION FAILED: need >= {MIN_DEPTH}'}")
     print(f"      converged            {d['converged_fraction']*100:.1f}% of samples")
+    print(f"      PTT success          {d['ptt_success']*100:.1f}% — "
+          f"{'aired == attempted, so delivery below is end-to-end' if d['ptt_success'] >= 0.999 else 'BELOW 100%: delivery below is inflated (B-04c)'}")
     print(f"      delivery             worst {d['min_delivery']*100:.1f}%, "
           f"mean {d['mean_delivery']*100:.1f}%")
     print(f"      relay transmissions  {d['relay_transmissions']}")

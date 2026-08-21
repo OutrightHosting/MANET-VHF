@@ -111,6 +111,9 @@ def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=Non
         "min_delivery": min(d.values()) if d else 0.0,
         "mean_delivery": sum(d.values()) / len(d) if d else 0.0,
         "relay_transmissions": sim.relay_total(),
+        # B-04c: delivery divides by payloads that reached the air, so quote the PTT
+        # success beside it. Equal to 1.0 means the two are the same number.
+        "ptt_success": sim.ptt_success(sim.nodes[0].addr),
         # PRECONDITION. A mobility test that never leaves one hop tests nothing, and this
         # one did not for weeks. The runner fails the criterion if this is under 2.
         "max_hop_depth": max_depth,

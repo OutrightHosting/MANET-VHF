@@ -566,7 +566,18 @@ class Simulation:
         return sum(n.relayed for n in self.nodes)
 
     def delivery(self, src_addr):
-        """Fraction of that source's payloads each node actually received."""
+        """
+        Fraction of that source's AIRED payloads each node received.
+
+        Note the denominator, because it has a bias in it and the bias is not small.
+        `originated` counts payloads the scheduler ACCEPTED. A radio locked out of the
+        channel has its refused payloads vanish from the denominator, so it can read 64%
+        delivered while emitting almost nothing -- measured, during B-04b.
+
+        Single-talker figures are unaffected: PTT success is 100% in the chain, hill and
+        cluster cases, so aired == attempted and this equals end-to-end. With concurrent
+        talkers it does not, and `speech_through()` is the number that matters.
+        """
         origin = next((n for n in self.nodes if n.addr == src_addr), None)
         sent = origin.originated if origin else 0
         if sent == 0:
@@ -576,6 +587,28 @@ class Simulation:
             got = sum(1 for pid in n.heard_payloads if pid[0] == src_addr)
             out[n.index] = got / sent
         return out
+
+    def ptt_success(self, src_addr):
+        """
+        Fraction of this radio's origination attempts that reached the air.
+
+        Below 1.0 the radio is being denied the channel -- someone pressed the button and
+        nothing went out. It is the half of the story `delivery()` cannot show.
+        """
+        origin = next((n for n in self.nodes if n.addr == src_addr), None)
+        if origin is None or origin.origination_attempts == 0:
+            return 1.0
+        return origin.originated / origin.origination_attempts
+
+    def speech_through(self, src_addr):
+        """
+        End to end: of the speech this radio TRIED to send, what fraction arrived, per node.
+
+        delivery x ptt_success. The only figure that means "could the other person hear
+        them", and the only one safe to quote when more than one radio is talking.
+        """
+        ptt = self.ptt_success(src_addr)
+        return {i: d * ptt for i, d in self.delivery(src_addr).items()}
 
     def latency_slots(self, src_addr):
         """Slots from origination to first decode, per node."""
