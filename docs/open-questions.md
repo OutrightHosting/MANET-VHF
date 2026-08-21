@@ -965,11 +965,49 @@ Against zero crossing in either direction before. Four simultaneous talkers like
 reach across the chain. Single-talker delivery is unchanged at 96.8% worst and the Phase 0
 gate still passes 5 of 5.
 
-**Not finished.** Two talkers at opposite ends of a long chain still barely cross — 5–8%
-through the meeting point — and concurrent-stream quality of 41–60% is well short of what
-voice needs. A conversation between two people at the two ends of a dispersed group is
-exactly the case the product exists for. `multi_talker` in `sim/scenarios/gate.py` now
-covers this so it cannot go untested again.
+### The opposite-ends case is a capacity limit, not a defect
+
+Two talkers at the two ends of a chain do not cross at all, and the reason turns out to be
+arithmetic rather than a scheduling bug.
+
+**A relay carrying N conversations needs 2N slots per frame** — N to transmit, and N kept
+free to listen on, since a half-duplex radio hears nothing while its own PA is keyed.
+
+| Conversations | Slots needed | Of the 4 available |
+|---|---|---|
+| 1 | 2 | fits, with room for beacons |
+| 2 | **4** | exactly full, nothing spare |
+| 3 | 6 | does not fit |
+
+Measured directly: every relay in the chain transmits ~238 times in ~240 frames. They are
+already at one transmission per frame. The chain divides cleanly, with n0–n2 carrying one
+stream and n3–n6 the other, and the boundary radio hearing its own stream 216 times and the
+other 20.
+
+Cross-delivery degrades exactly as the talkers separate and share more of the chain:
+
+| Talkers | Cross-delivery |
+|---|---|
+| 2 hops apart | 49% / 83% |
+| 3 hops apart | 42% / 60% |
+| Opposite ends of 7 | **0% / 0%** |
+
+**This is [OQ-0017](#oq-0017)'s prediction, confirmed.** That entry reasoned that a chained
+topology collapses toward one conversation because a relayed stream occupies every slot
+along the chain. It does, and two streams need a frame that does not exist.
+
+Three things could change it, and none is a scheduling fix: more slots (forbidden — four is
+forced from both directions by [ADR-0008](decisions/0008-four-slots.md)), a lower vocoder
+rate so a conversation needs less than a slot per frame, or accepting that a chain carries
+one conversation at a time — which is how push-to-talk works socially anyway, and is worth
+weighing before engineering around it.
+
+Attempted and rejected: a periodic listening gap so radios can discover a second stream
+they are deaf to. It recovered one direction to 32% and left the other at zero, while
+costing single-talker mobility 13–23 points. The asymmetry is the tell — whichever stream
+establishes first monopolises the relay, and there is no fairness mechanism.
+
+`multi_talker` in `sim/scenarios/gate.py` covers all of this so it cannot go untested again.
 
 ### The destination address is inert
 
