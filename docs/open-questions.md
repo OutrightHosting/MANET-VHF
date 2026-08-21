@@ -1376,6 +1376,37 @@ Run the frequency sweep first. If PER stays flat to ±200 Hz, ADR-0011 stands an
 hops. If it collapses inside ±50 Hz, the election returns and the product is three hops until
 the LO is disciplined.
 
+### How much has to be true — measured, not assumed
+
+The model asserts identical copies *never* jam. Reality will be weaker: capture still needs
+some power separation, and the question is how much. Simulated by making identical copies
+count as interference whenever they fall within `margin` dB of the wanted copy — `margin = 0`
+is ADR-0011's model, `margin = 10` is the pre-ADR-0011 behaviour:
+
+| Separation needed | own group | hilltop | far group | Verdict |
+|---|---|---|---|---|
+| 0 dB | 98.8% | 96.7% | 96.5% | ADR-0011 as written |
+| 1 dB | 98.5% | 98.3% | 98.2% | **holds** |
+| **3 dB** | 99.4% | 99.3% | **99.1%** | **holds** |
+| **6 dB** | 99.9% | 99.9% | **3.2%** | **collapses** |
+| 10 dB | 99.9% | 99.9% | 2.2% | collapses |
+
+**There is a cliff between 3 dB and 6 dB, and nothing gradual about it.** Per-hop cost stays
+at 1.00 slots throughout — what fails is not the timing, it is that the frame stops arriving
+at all beyond the hilltop.
+
+Two things follow. First, **the decision does not need the strong claim.** If the demodulator
+separates identical copies down to 3 dB, seven hops stands; ADR-0011 does not depend on them
+never interfering. Second, the [literature review §121](literature-review.md) asked *"what
+happens at 0–3 dB?"* — that range is exactly the one that decides it, and the question was
+calibrated correctly a long time before this measurement was taken.
+
+Note the 1 dB and 3 dB rows are *better* than 0 dB. Some mutual jamming in the dense hilltop
+group suppresses relays that were adding airtime and deafness without adding coverage — which
+is Mixer's point in [§111](literature-review.md), that the objective is to **steer** the
+number of concurrent transmitters rather than maximise or minimise it. Worth revisiting once
+the bench gives a real figure.
+
 **Note this replaces the uncited 10 dB capture assumption** in
 [ADR-0008](decisions/0008-four-slots.md) for the identical-payload case only. Different
 payloads still use it, and it is still uncited — see the
