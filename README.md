@@ -22,8 +22,10 @@ definition, the decisions already taken, and the questions still open.
 
 ```
 core/       protocol core — C99, freestanding. The code that ships.
+              addr, frame built; slot next
 sim/        Phase 0 simulation harness — Python, drives core/ via CFFI
 firmware/   Phase 1 STM32F4 target — empty until Phase 0 passes
+tools/      budget sweep and other Phase 0 instrumentation
 docs/       brief, addendum, decision log, open questions
 ```
 
@@ -39,6 +41,19 @@ transmission is an addressed, typed frame; voice is one type among several; the 
 headers and never payload. Not a request for features — a constraint on structure, so that adding
 text, position reporting or a dispatch console later does not mean rewriting the MAC.
 ([ADR-0007](docs/decisions/0007-packet-switched-frame-architecture.md))
+
+## Building
+
+```bash
+make test
+```
+
+```
+make test           unit tests, host build
+make budget         slot budget across candidate frame structures (OQ-0002)
+make freestanding   assert the core pulls in no libc beyond mem*
+make arm            compile the core for cortex-m4; skips if the toolchain is absent
+```
 
 ## Phases
 

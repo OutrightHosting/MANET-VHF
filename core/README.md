@@ -42,8 +42,8 @@ Intended modules, in dependency order:
 
 | Module | Responsibility |
 |---|---|
-| `addr` | Address space, range predicates (individual / gateway / group / broadcast / reserved) |
-| `frame` | On-air header pack/unpack — source, destination, type, sequence, TTL, priority |
+| `addr` | ✅ Address space, range predicates (individual / gateway / group / broadcast / reserved) |
+| `frame` | ✅ On-air header pack/unpack — source, destination, type, sequence, TTL, priority |
 | `slot` | TDMA slot state machine, frame timing, pipelining rule (ADR-0002) |
 | `queue` | Priority queue, four classes, pre-emption policy (Addendum 01 §5) |
 | `neighbour` | Directly-heard neighbour table with link quality, ageing |
@@ -52,10 +52,32 @@ Intended modules, in dependency order:
 | `dispatch` | Receive path — switch on frame type. The **only** place that knows what a payload is |
 | `node` | Composition of the above; the object the platform instantiates |
 
-`addr` and `frame` come first, then `slot`. The header format is the one artefact here that cannot
-be changed after radios ship, and it is currently the binding constraint on the whole design — see
-[OQ-0012](../docs/open-questions.md#oq-0012) and [OQ-0002](../docs/open-questions.md#oq-0002).
-Nothing above `slot` can be settled until those are.
+`addr` and `frame` are built (✅). `slot` is next. The header format is the one artefact here that
+cannot be changed after radios ship — see [OQ-0012](../docs/open-questions.md#oq-0012).
+
+`config.h` holds the compile-time parameters and computes the slot budget from them, enforced by
+static assertion: a configuration that cannot carry its own sync, header and voice payload fails to
+build. This is what makes [OQ-0002](../docs/open-questions.md#oq-0002) something you sweep rather
+than something you argue about.
+
+## Building
+
+```
+make test           unit tests, host build
+make budget         slot budget across candidate frame structures (OQ-0002)
+make freestanding   assert the core pulls in no libc beyond mem*
+make arm            compile the core for cortex-m4; skips if the toolchain is absent
+```
+
+Built `-Wall -Wextra -Werror -pedantic -Wshadow -Wconversion -Wsign-conversion`.
+
+`make freestanding` is how the ADR-0006 rules stop being aspirational: it reads the undefined
+symbols out of the core objects and fails if anything reaches for libc. A stray `printf`, a `malloc`,
+or a soft-float helper pulled in by an accidental `double` all show up there.
+
+A note on `_Static_assert`: it is C11, and this core is C99. `config.h` uses it when the translation
+unit is compiled as C11 or later — the messages carry OQ references and are worth having — and falls
+back to the negative-array-size idiom otherwise.
 
 ## What is *not* here
 

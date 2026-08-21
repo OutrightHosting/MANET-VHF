@@ -21,7 +21,7 @@ writing the decision log and are not yet in either document.
 | [OQ-0009](#oq-0009) | Channel access: who owns a slot, across four priority classes | **Phase 0** | The MAC is not fully specified without this | Open |
 | [OQ-0010](#oq-0010) | RX→TX turnaround budget on a half-duplex transceiver | Phase 1 | Guard interval, therefore payload, therefore OQ-0002 | Open |
 | [OQ-0011](#oq-0011) | ~~Is full OLSR topology-control dissemination needed at all?~~ | — | — | **Closed** — TC stays |
-| [OQ-0012](#oq-0012) | Header field widths and total header size | **Phase 0** | OQ-0002; and the header format is forever | Open |
+| [OQ-0012](#oq-0012) | Header field widths and total header size | **Phase 0** | ~~OQ-0002~~; the header format is forever | Open — no longer blocks OQ-0002 |
 | [OQ-0013](#oq-0013) | Spatial reuse distance and its coupling to slot count | **Phase 0** | Whether the 3-slot escape from OQ-0002 is safe | Open |
 
 ---
@@ -73,7 +73,7 @@ Propagation delay is negligible: 50 µs at 15 km.
 | # | Route | Assessment |
 |---|---|---|
 | 1 | **Raise gross rate** to ~22 kbps | Depends entirely on [OQ-0001](#oq-0001) and is not in our gift. Cannot be planned on |
-| 2 | **Cut FEC and framing** | No longer available. Itemisation shows FEC is what has already been squeezed to nothing, not what is available to squeeze |
+| 2 | **Cut FEC and framing** | **Eliminated.** Itemisation shows FEC is what has already been squeezed to nothing; and a zero-length header still leaves only 25% — see findings below |
 | 3 | **3 slots × 20 ms** | **Currently the strongest.** Leaves 102 bits for FEC — a 45% ratio, landing on the brief's own 47% target. Costs spatial reuse margin, not latency ([OQ-0013](#oq-0013)) |
 | 4 | **120 ms voice superframe** | Still viable. One codec payload spans two slot opportunities; preserves 4 slots and the gross rate, at the cost of latency and framing complexity. Also halves per-payload header overhead, which is worth something |
 | 5 | **Drop to Codec2 2400** | Newly worth listing. Frees 48 bits and directly relieves the deficit, at the cost of hard requirement 7 becoming a much closer call. Prefer 3 and 4 first |
@@ -83,8 +83,33 @@ weaker than the brief implies — under pipelining a payload advances one hop pe
 chain costs 100 ms at 3×20 ms against a 300 ms criterion. And its real cost, spatial reuse margin,
 is [OQ-0013](#oq-0013) and is not yet characterised.
 
-Phase 0 should evaluate all five rather than pick one on paper. This is the first thing the
-simulator earns its keep on, ahead of the five questions in the brief.
+### Phase 0 findings — 2026-08-21
+
+The budget is no longer arithmetic in a document. `core/include/manet/config.h` computes it from
+compile-time parameters and enforces it by static assertion, and `make budget` sweeps candidate
+frame structures by actually compiling each one. The straw-man reproduces exactly: 288 raw, 264 on
+air, 34 header, **14 bits for FEC**.
+
+| Configuration | On air | Header | FEC | Ratio |
+|---|---|---|---|---|
+| 4×15 ms, 19.2k (ADR-0007 straw-man) | 264 | 34 | 14 | 6% |
+| 3×20 ms, 19.2k | 352 | 34 | 102 | **45%** |
+| 4×15 ms, 22.4k | 308 | 34 | 58 | 25% |
+| 4×15 ms, 16.0k | 220 | 34 | −30 | infeasible |
+| 3×20 ms, 16.0k | 293 | 34 | 43 | 19% |
+| 4×15 ms, 19.2k, Codec2 2400 | 264 | 34 | 62 | 34% |
+
+**The decisive result: at 4×15 ms / 19.2 kbps / Codec2 3200, a header of length *zero* would still
+leave only 48 bits — a 25% ratio against DMR's 47%.** The 4-slot structure cannot reach
+DMR-equivalent protection under any header design, so no amount of header frugality rescues it.
+This eliminates route 2 completely and confirms the problem is structural: slot length, bit rate, or
+vocoder. Nothing else moves it.
+
+Route 3 (3×20 ms) is the only configuration in the sweep that both closes and holds at 19.2 kbps
+without touching the vocoder. It remains contingent on [OQ-0013](#oq-0013).
+
+Phase 0 should still evaluate routes 3, 4 and 5 against simulated behaviour rather than adopting
+route 3 on budget grounds alone — the budget says which frames can exist, not which ones work.
 
 ## OQ-0003
 ### Synchronisation method
@@ -255,8 +280,34 @@ Open per field:
   recover a meaningful fraction of the deficit — at the cost of the clean uniform dispatch the
   addendum asks for. Worth evaluating, worth being suspicious of.
 
-Settle in Phase 0, against simulated results rather than on paper. The header format is the one
-thing here that cannot be changed after radios ship.
+### Phase 0 findings — 2026-08-21
+
+**Header width is not an escape route from [OQ-0002](#oq-0002), and this question should stop being
+treated as if it were.** Two results from `make budget`:
+
+- With the address map fixed at 8 bits, the only field that can be narrowed without re-deriving the
+  map is the sequence number. 8 → 6 bits recovers 2 bits of 264, moving FEC from 14 to 16.
+- A header of length *zero* at 4×15 ms / 19.2 kbps / Codec2 3200 still leaves only 48 bits, a 25%
+  ratio. The header is 13% of the on-air budget against a deficit of ~88 bits.
+
+So the header can be designed on its own merits — durability, forward compatibility, clean dispatch
+— rather than shaved for bits it cannot supply. That is a better position to design from.
+
+What remains genuinely open, now on those merits rather than on budget:
+
+- **Sequence window.** 8 bits gives ~15 s. Long enough across a partition and rejoin? Phase 0's
+  partition scenario answers this directly, and it is now the strongest constraint on the field.
+- **TTL headroom.** 4 bits caps at exactly the brief's 15-hop maximum, with none spare. Deliberate?
+- **Frame type space.** 4 bits, 8 reserved. Permanent once radios ship.
+- **Address width and map.** `config.h` asserts `MANET_ADDR_BITS == 8` precisely so this cannot be
+  changed without re-deriving the range boundaries. Is 159 handhelds / 32 gateways / 48 groups the
+  right split, and are addresses per-network or does anything need global uniqueness?
+- **Uniform vs compressed header.** An in-stream voice frame arguably needs less than a beacon.
+  Now clearly *not* worth the complexity for budget reasons — but possibly still worth it if
+  per-frame overhead matters elsewhere. Default to uniform; the burden of proof has shifted.
+
+Settle the rest in Phase 0, against simulated results rather than on paper. The header format is the
+one thing here that cannot be changed after radios ship.
 
 ## OQ-0013
 ### Spatial reuse distance and its coupling to slot count
