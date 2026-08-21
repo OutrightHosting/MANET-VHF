@@ -57,13 +57,19 @@ def main():
           f"and gathers up, twice")
     # A mobility test inside one radio horizon tests nothing. This criterion previously
     # stretched to 3 km against a 4.4 km range and could not fail.
-    deep_enough = d["max_hop_depth"] >= 2
+    #
+    # Threshold is 3, matching backlog B-01's stated done-test, not the 2 that would merely
+    # prove it left one hop. DISPERSAL_HOPS = 3.5 delivers 4, so there is a hop of headroom;
+    # if a propagation change ever erodes that, this should fail rather than quietly accept
+    # a shallower test than the one that was specified.
+    MIN_DEPTH = 3
+    deep_enough = d["max_hop_depth"] >= MIN_DEPTH
     ok_mob = (d["converged_fraction"] >= 0.95 and d["min_delivery"] >= 0.90
               and deep_enough)
     print(f"      radio horizon        {d['range_m']/1000:.2f} km — "
           f"stretch is {d['spread_max']/d['range_m']:.1f}x it")
     print(f"      deepest topology     {d['max_hop_depth']} hops"
-          f"{'' if deep_enough else '   <- PRECONDITION FAILED: never left one hop'}")
+          f"{'' if deep_enough else f'   <- PRECONDITION FAILED: need >= {MIN_DEPTH}'}")
     print(f"      converged            {d['converged_fraction']*100:.1f}% of samples")
     print(f"      delivery             worst {d['min_delivery']*100:.1f}%, "
           f"mean {d['mean_delivery']*100:.1f}%")

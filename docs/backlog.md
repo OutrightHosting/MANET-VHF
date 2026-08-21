@@ -25,11 +25,11 @@ ERP limits, and which VHF band the transceiver is characterised for
 
 ## P0 — The instrument is broken. Nothing below is trustworthy until this is fixed.
 
-- [x] **B-01 · Gate Q1 never goes multi-hop.** ✅ **Fixed.** Stretch is now `DISPERSAL_HOPS × RANGE_M` = 14.8 km, reaching **4 hops** deep, and the criterion fails if depth < 2. `dispersal()` stretches the group to 3000 m
-      ([gate.py:48](../sim/scenarios/gate.py)) against a 4416 m woodland range, so every node
-      is one hop from every other at every sample. The mobility criterion cannot fail.
-      **Done when:** `spread_max` forces ≥ 3 hops at maximum stretch and the test still
-      passes — or fails honestly. *Hours.*
+- [x] **B-01 · Gate Q1 never goes multi-hop.** ✅ **Fixed 2026-08-21.** `dispersal()` stretched
+      the group to 3000 m against a 4416 m woodland range, so every node was one hop from
+      every other at every sample and the mobility criterion could not fail. Stretch is now
+      derived — `DISPERSAL_HOPS × RANGE_M` = 15.5 km, 3.5× the horizon — reaching **4 hops**
+      deep, and the criterion **fails below 3**. Verified to fail at the old 3000 m.
 - [x] **B-02 · Gate Q5 never partitions.** ✅ **Fixed.** Separation is now `PARTITION_MARGIN × RANGE_M + jitter` = 7.4 km; halves genuinely split to 6/12 each, and the criterion fails if they never lose contact. `SplinterRejoin(separation_m=4000.0)`
       ([gate.py:96](../sim/scenarios/gate.py)) against 4416 m range. The log reports 12/12
       reachable while "apart", and then reports reconvergence from a split that never
