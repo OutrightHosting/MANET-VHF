@@ -22,8 +22,30 @@ buffer and audio path are counted, and unusable beyond that.
 TDMA, 60 ms frame, 4 slots of 15 ms, with **slot pipelining**: a relaying node receives in slot *n*
 and retransmits in slot *n+1* of the same frame.
 
-A transmission therefore advances three hops within one frame, wrapping into the next frame's
-slot 0 for the fourth. Average cost is ~20 ms/hop, giving 15 hops in 300 ms.
+A transmission therefore advances one hop per slot, continuously — 15 ms per hop, with the frame
+boundary no obstacle.
+
+> **Corrected 2026-08-21 from [the literature review](../literature-review.md).** This paragraph
+> previously read "~20 ms/hop, giving 15 hops in 300 ms". Both halves were wrong.
+>
+> At 15 ms slots the cost is **15 ms per hop**, not 20. And 300 ms is not a propagation budget:
+> 3GPP TS 22.179 R-6.15.3.2-015 specifies 300 ms **mouth-to-ear** for 95% of voice bursts. Our
+> chain is roughly 60 ms packetisation + ~30 ms mean slot wait + 15 ms/hop + ~60 ms de-jitter +
+> ~30 ms codec ≈ 180 + 15H ms, which gives **H ≤ 8 hops** — not 15.
+>
+> Larger still: **the effective diameter is about four hops.** The talker emits a payload every
+> frame, so with four slots the pipeline wraps into the originator's own next transmission after
+> four hops. The TTL sizing in [OQ-0020](../open-questions.md#oq-0020) was argued against the
+> wrong number entirely.
+>
+> The technique is not ours and has two names in the literature: a **Barrage Relay Network**
+> (TrellisWare TSM) in the tactical world, and *pipelined flooding* or *concurrent transmissions*
+> (Glossy, Ferrari et al., IPSN 2011) in the sensor-network world. It is latency-optimal for
+> one-to-all delivery, so this is the part of the design least in need of defending.
+>
+> Note also that TrellisWare hold patents covering spatial pipelining directly — US 8,873,391
+> (priority 2012-05-24), US 8,897,158, US 9,054,822. Worth a freedom-to-operate opinion before
+> this becomes a product.
 
 Store-and-forward is explicitly rejected. It is simpler, and it does not meet the requirement.
 

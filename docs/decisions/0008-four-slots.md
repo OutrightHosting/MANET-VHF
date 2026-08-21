@@ -36,6 +36,21 @@ constraints, and it is pinned from both sides at once.
 > weaker than stated and the reuse margin rests on an uncited 10 dB capture threshold that,
 > below 9.1 dB, reverses the result entirely.
 
+### A second derivation, with no fragile constants
+
+The argument below rests on a 10 dB capture threshold and a 3.2 path-loss exponent, and this
+ADR's own reversal trigger admits the verdict flips below 9.1 dB. Gupta & Kumar's Protocol
+Model reaches the same answer using neither.
+
+A transmission over distance *d* survives if every other simultaneous transmitter is at least
+(1+Δ)·*d* from the **receiver**. With N slots and one hop per slot the co-slot reuser is N hops
+from the transmitter, hence (N−1)·*d* from the receiver, so Δ = N−2. Four slots gives Δ = 2;
+three gives Δ = 1. Li et al.'s measured 802.11 hardware figure is Δ = 550/250 − 1 = 1.2
+(*Capacity of Ad Hoc Wireless Networks*, MobiCom 2001, §3.2).
+
+**Four passes, three fails, and no dB figure appears anywhere in it.** Treat this as the primary
+argument and the capture-threshold analysis below as corroboration.
+
 **Spatial reuse requires at least four.** The originator transmits every frame, so with N
 slots the radio N hops down the chain transmits in the same slot at the same instant. A
 relay listening to its neighbour one hop away therefore hears that reuser N−1 hops away,
