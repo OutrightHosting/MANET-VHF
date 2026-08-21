@@ -181,6 +181,19 @@ or 328. A slot is the smallest thing that can be transmitted, so the remainder i
 information cost is comfortable; the airtime cost is three times worse and comes straight out of
 voice.
 
+**Beacon airtime is linear in group size, and this is the ceiling that cannot be engineered
+away.** Every radio must announce itself once per interval, and a beacon needs a whole slot:
+
+| Radios | Slots per interval | Share of ALL airtime |
+|---|---|---|
+| 12 | 12 of 132 | 9.1% |
+| 24 | 24 of 132 | 18.2% |
+| 48 | 48 of 132 | 36.4% |
+| 100 | 100 of 132 | **75.8%** |
+
+Table size and TTL can both be raised — one is memory, the other two header bits. This one is
+channel capacity, and at around forty radios beacons are eating a third of everything.
+
 **And the 3-slot structure is worse at it**, because its slots are larger and therefore waste more —
 12.1% against 9.0%. This is a **third cost of the leading escape route from
 [OQ-0002](#oq-0002)**, alongside the reuse-distance cost in [OQ-0013](#oq-0013) and the concurrent
@@ -403,8 +416,17 @@ Open per field:
   can answer this directly from the partition/rejoin scenario.
 - **Frame type at 4 bits** reserves 8 values. The addendum asks for "generous" space. Is 8 generous,
   given every extra bit is permanent?
-- **TTL at 4 bits** caps at 15 hops, matching the brief's stated maximum exactly — with no headroom.
-  Deliberate or accidental?
+- **TTL at 4 bits** caps at 15 hops, matching the brief's stated maximum exactly — with no
+  headroom, and **this is now measured as a hard cap on network diameter, not a safety
+  margin**. In a chain at 290 m spacing, delivery tracks the fraction of the group inside 15
+  hops almost exactly: 24 radios (23 hops) delivered 66%, 32 radios 50%, 48 radios 31%.
+  Rebuilding with a 6-bit TTL — 63 hops, two more header bits — lifted those to 99%, 99% and
+  78%. Everything beyond hop 15 is discarded by design and looks, from the field, like the
+  far end of the group simply not being covered.
+
+  For twelve leaders this never binds: the worst case is 11 hops. It binds the moment anyone
+  asks for a larger group or a longer line, and two bits is a cheap fix in a header that has
+  no spare bits ([OQ-0002](#oq-0002)).
 - **Sync/preamble at 24 bits** is assumed, not derived. DMR spends 48. This is the largest single
   unverified number in the budget and it is not strictly a header field, but it competes for the
   same bits.
