@@ -67,14 +67,26 @@ make test           unit tests, host build
 make test-3slot     the whole suite rebuilt at 3 x 20 ms, the leading OQ-0002 escape
 make budget         slot budget across candidate frame structures (OQ-0002)
 make freestanding   assert the core pulls in no libc beyond mem*
-make arm            compile the core for cortex-m4; skips if the toolchain is absent
+make arm            build for cortex-m4, check for float/libc, report flash and RAM
 ```
 
 Built `-Wall -Wextra -Werror -pedantic -Wshadow -Wconversion -Wsign-conversion`.
 
-`make freestanding` is how the ADR-0006 rules stop being aspirational: it reads the undefined
-symbols out of the core objects and fails if anything reaches for libc. A stray `printf`, a `malloc`,
-or a soft-float helper pulled in by an accidental `double` all show up there.
+`make freestanding` and `make arm` are how the ADR-0006 rules stop being aspirational: both read the
+undefined symbols out of the core objects and fail if anything reaches for libc. A stray `printf` or
+`malloc` shows up there.
+
+`make arm` carries more weight than the host check. An accidental `double` links silently against
+x86 hardware floating point, but on cortex-m4 it pulls in `__aeabi_dadd` and friends — so the ARM
+build is what actually enforces the no-floating-point rule, and with it the bit-identical behaviour
+between simulator and firmware that the whole approach depends on.
+
+libgcc *integer* helpers are permitted and `__aeabi_uldivmod` is expected: cortex-m4 has no 64-bit
+divide instruction. Floating-point helpers are a hard failure.
+
+Current cost on target, with `addr`, `frame` and `slot` built: **1269 bytes of flash, 0 data,
+0 bss.** The two zeroes are the "no globals, no mutable statics" rule confirmed by the linker rather
+than by inspection.
 
 A note on `_Static_assert`: it is C11, and this core is C99. `config.h` uses it when the translation
 unit is compiled as C11 or later — the messages carry OQ references and are worth having — and falls

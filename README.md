@@ -54,7 +54,7 @@ make test           unit tests, host build
 make test-3slot     the whole suite rebuilt at 3 x 20 ms, the leading OQ-0002 escape
 make budget         slot budget across candidate frame structures (OQ-0002)
 make freestanding   assert the core pulls in no libc beyond mem*
-make arm            compile the core for cortex-m4; skips if the toolchain is absent
+make arm            build for cortex-m4, check for float/libc, report flash and RAM
 ```
 
 ## Phases

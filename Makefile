@@ -24,7 +24,7 @@ TEST_OBJ := $(patsubst core/tests/%.c,$(BUILD)/tests/%.o,$(TEST_SRC))
 
 ARM_CC   := arm-none-eabi-gcc
 
-.PHONY: all test test-3slot budget freestanding arm clean
+.PHONY: all test test-3slot budget freestanding arm arm-build arm-check arm-size clean
 
 all: test
 
@@ -83,23 +83,64 @@ freestanding: $(CORE_OBJ)
 
 # ------------------------------------------------------------------ arm target --
 
-# Proves the "same code" claim in ADR-0006: the core compiles for the real target.
-# Skipped with a message if the toolchain is not installed.
+ARM_OBJ   := $(patsubst core/src/%.c,$(BUILD)/arm/%.o,$(CORE_SRC))
+ARM_FLAGS := -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -ffreestanding -Os
+
+# Proves the "same code" claim in ADR-0006: the core compiles for the real target, and
+# depends on nothing the target cannot provide.
+#
+# The dependency check matters MORE here than on the host. A stray double or float in
+# the core links silently against x86 hardware FP, but on ARM it pulls in __aeabi_dadd
+# and friends — so this is the build that actually enforces the no-floating-point rule,
+# and with it the bit-identical behaviour the simulator's warranty rests on.
 arm:
 	@if ! command -v $(ARM_CC) >/dev/null 2>&1; then \
 	    echo "skip: $(ARM_CC) not installed"; \
 	    echo "      brew install --cask gcc-arm-embedded"; \
 	    exit 0; \
 	fi; \
-	mkdir -p $(BUILD)/arm; \
-	for src in $(CORE_SRC); do \
-	    obj=$(BUILD)/arm/$$(basename $$src .c).o; \
-	    echo "$(ARM_CC) -c $$src"; \
-	    $(ARM_CC) $(CSTD) $(WARN) $(INC) $(FREE) \
-	        -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 \
-	        -ffreestanding -Os -c -o $$obj $$src || exit 1; \
-	done; \
-	echo "ok: core builds for cortex-m4"
+	$(MAKE) -s arm-build arm-check arm-size
+
+arm-build: $(ARM_OBJ)
+
+$(BUILD)/arm/%.o: core/src/%.c
+	@mkdir -p $(@D)
+	$(ARM_CC) $(CSTD) $(WARN) $(INC) $(FREE) $(ARM_FLAGS) -c -o $@ $<
+
+# libgcc integer helpers are permitted: cortex-m4 has no 64-bit divide instruction, so
+# uint64 arithmetic compiles to a call. Every embedded ARM build links libgcc.
+ARM_ALLOWED := memcpy|memset|memmove|memcmp\
+|__aeabi_memcpy|__aeabi_memcpy4|__aeabi_memcpy8|__aeabi_memset|__aeabi_memclr|__aeabi_memclr4|__aeabi_memclr8\
+|__aeabi_uldivmod|__aeabi_ldivmod|__aeabi_uidiv|__aeabi_idiv|__aeabi_uidivmod|__aeabi_idivmod\
+|__aeabi_lmul|__aeabi_llsl|__aeabi_llsr|__aeabi_lasr\
+|__udivdi3|__umoddi3|__divdi3|__moddi3|__muldi3
+
+arm-check: $(ARM_OBJ)
+	@syms=$$(arm-none-eabi-nm -u $(ARM_OBJ) 2>/dev/null \
+	         | sed 's/^ *//; s/^U //' \
+	         | grep -v '^$$' | grep -v ':$$' | grep -v '^manet_' | sort -u); \
+	float=$$(printf '%s\n' "$$syms" | grep -E '^(__aeabi_[df]|__aeabi_[a-z]+2[df]|__[a-z]+[sd]f[0-9])' || true); \
+	if [ -n "$$float" ]; then \
+	    echo "FAIL: floating point has crept into the core — ADR-0006 forbids it,"; \
+	    echo "      because x86 and ARM float results differ and the simulator's"; \
+	    echo "      warranty depends on them being bit-identical:"; \
+	    printf '%s\n' "$$float" | sed 's/^/  /'; exit 1; \
+	fi; \
+	other=$$(printf '%s\n' "$$syms" | grep -v '^$$' | grep -vE '^($(ARM_ALLOWED))$$' || true); \
+	if [ -n "$$other" ]; then \
+	    echo "FAIL: unexpected target runtime dependency:"; \
+	    printf '%s\n' "$$other" | sed 's/^/  /'; exit 1; \
+	fi; \
+	echo "ok: no floating point, no libc"; \
+	helpers=$$(printf '%s\n' "$$syms" | grep -E '^__' || true); \
+	if [ -n "$$helpers" ]; then \
+	    echo "    libgcc integer helpers linked (expected):"; \
+	    printf '%s\n' "$$helpers" | sed 's/^/      /'; \
+	fi
+
+arm-size: $(ARM_OBJ)
+	@echo "flash and RAM cost of the protocol core:"
+	@arm-none-eabi-size -t $(ARM_OBJ) | sed 's/^/  /'
 
 clean:
 	rm -rf $(BUILD)

@@ -71,6 +71,46 @@ These are not style preferences. Each one is load-bearing for "same code":
 - The core must be built as a *per-node* state object with no globals, since the simulator
   instantiates twelve of them in one process. No `static` mutable state anywhere in `core/`.
 
+## Verification — 2026-08-21
+
+The claim is enforced by the build rather than asserted in this document.
+
+`make freestanding` reads the undefined symbols out of the host objects and fails on
+anything reaching for libc. `make arm` does the same for a cortex-m4 build, and that one
+carries more weight: a stray `double` in the core links silently against x86 hardware
+floating point, but on ARM it pulls in `__aeabi_dadd` and its relatives. **The ARM build
+is therefore what actually enforces the no-floating-point rule**, and with it the
+bit-identical behaviour the simulator's warranty rests on. The guard has been checked
+against a deliberately introduced `double` to confirm it is not vacuous.
+
+Results with `addr`, `frame` and `slot` implemented, at both 4 × 15 ms and 3 × 20 ms:
+
+| | |
+|---|---|
+| Floating point | none |
+| libc dependencies | none |
+| libgcc integer helpers | `__aeabi_uldivmod` only |
+| Flash (`text`) | 1269 bytes |
+| Initialised data | **0 bytes** |
+| Zero-initialised data (`bss`) | **0 bytes** |
+
+Zero `data` and zero `bss` is the "no globals, no mutable `static` state" rule confirmed
+by the linker. Every byte of node state lives in a caller-owned struct, which is what
+lets the simulator run twelve nodes in one process.
+
+**On libgcc.** Integer helpers are permitted and `__aeabi_uldivmod` is expected: cortex-m4
+has no 64-bit divide instruction, so `uint64_t` division compiles to a call. It comes
+from the microsecond-to-slot-number conversion in `slot.c`, a convenience the firmware
+will rarely use — on target the slot number increments on a timer interrupt rather than
+being divided out of a clock. Floating-point helpers remain a hard failure.
+
+What is still unproven is that the two builds *behave* identically, rather than merely
+compiling and depending on the same things. The wire format is endianness-independent by
+construction — the bit packer works byte-by-byte, MSB first, and is pinned by a golden
+vector — and no floating point means no arithmetic divergence. Running the test suite on
+target under emulation would close the gap properly; it needs `qemu-system-arm` and a
+cortex-m4 startup stub, and has not been done.
+
 ## Reversal trigger
 
 None anticipated. If the core grows to a size where C becomes the bottleneck on protocol iteration,
