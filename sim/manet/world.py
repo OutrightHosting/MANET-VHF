@@ -120,6 +120,7 @@ class Simulation:
     # cannot pay it. Coverage-based suppression now handles what the stagger was for.
     STAGGER = False
     NAMA_RELAY = True
+    PROTECT_TALKER_PHASE = False
     DESIGNATED_RELAY = False
 
     def _schedule_beacons(self, slot):
@@ -192,7 +193,12 @@ class Simulation:
         not work: times five modulo four is just modulo four, and every odd address lands
         on the same two phases.
         """
-        h = (node.addr * 0x9E3779B1) & 0xFFFFFFFF
+        return self.phase_of_addr(node.addr)
+
+    def phase_of_addr(self, addr):
+        """The voice phase belonging to an address. Derivable by any radio that can
+        read a header, which is what lets relays avoid the talker's slot."""
+        h = (addr * 0x9E3779B1) & 0xFFFFFFFF
         return (h >> 16) % self.cfg.slots_per_frame
 
     def _schedule_voice(self, slot, active):
@@ -207,6 +213,12 @@ class Simulation:
                   seq=n.seq & 0xFF, prio=PRIO_VOICE, ttl=self.cfg.voice_ttl)
         n.seq = (n.seq + 1) & 0xFF
         if n.sched.originate(pdu, slot) == 0:
+            # Register our own payload in our own dedup table. Without this the echo
+            # coming back off the relays looks like a brand new frame, and the talker
+            # relays its own voice — measured at 273 spurious transmissions against 564
+            # originations, and because those land in every phase but the talker's own,
+            # they were what smeared the pipelining discipline ADR-0002 depends on.
+            n.dedup.check(pdu.src, pdu.seq, slot)
             n.originated += 1
             self.origin_log.setdefault((pdu.src, pdu.seq), []).append(slot)
             self.origin_count += 1
@@ -322,6 +334,13 @@ class Simulation:
             # more than the deafness it avoids.
             sources = {rx.rx_sources.get(ph) for ph in recent}
             busy = (recent - {slot % spf}) if len(sources) > 1 else set()
+            # Never transmit in the talker's own phase. With four slots the pipeline
+            # wraps after four hops into the slot the originator is using for its NEXT
+            # payload, so the deepest relays deafen the whole neighbourhood to the
+            # source. The phase is a hash of the address and `src` is in every header,
+            # so every relay can derive it from the frame in front of it — no signalling.
+            if self.PROTECT_TALKER_PHASE:
+                busy = busy | {self.phase_of_addr(pdu.src)}
             # A DESIGNATED relay does not wait. If the sender has already named this
             # radio as one of its multipoint relays — which it advertises in every beacon,
             # and beacons now get through because NAMA gives them collision-free slots —
