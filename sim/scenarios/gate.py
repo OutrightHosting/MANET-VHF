@@ -45,7 +45,7 @@ def cluster(n=12, seconds=90):
     }
 
 
-def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=1800.0):
+def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=4500.0):
     """
     The group stretches out and gathers up again while someone is talking.
 
@@ -53,9 +53,10 @@ def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=180
     channel is idle. Continuous transmission is not an operational case, and testing
     against it starves the control plane in a way real use never would.
     """
-    # Spread bounded by what the frame can actually carry. At 50 ms slots and a 500 ms
-    # mouth-to-ear budget the network is four hops deep; in woodland that is about 1.9 km
-    # of dispersal. Testing an 11-hop spread would measure the TTL, not the protocol.
+    # Spread bounded by what the frame can carry. At 50 ms slots and a 500 ms mouth-to-ear
+    # budget the network is four hops deep, and with the corrected vegetation model that is
+    # about 4.8 km of dispersal in woodland. Testing beyond it would measure the TTL rather
+    # than the protocol.
     mob = DispersingGroup(n, spread_min=120.0, spread_max=spread_max, period_s=240.0)
     sim = Simulation(mob, WOOD, BUDGET, talker=0)
     settle = CONFIG.beacon_interval_slots * 4

@@ -74,9 +74,12 @@ and that is the price of paying the preamble once per two slots rather than once
 - **[OQ-0002](../open-questions.md#oq-0002) does not close.** FEC goes from 6 bits to 44 —
   still 6%. Lengthening the slot recovers what the preamble costs and no more. The blocking
   item survives, and the escape routes are the ones it always had.
-- **Usable depth halves, from about 8 hops to 4.** This is the largest practical consequence.
-  At 50 ms per hop and 500 ms mouth-to-ear the network is four hops deep, which in woodland
-  is roughly 1.9 km of dispersal. A group strung out over 3 km is beyond reach.
+- **Usable depth halves, from about 8 hops to 4.** At 50 ms per hop and 500 ms mouth-to-ear
+  the network is four hops deep. With the vegetation model corrected
+  ([OQ-0023](../open-questions.md#oq-0023)) that is about **4.8 km of dispersal in
+  woodland**, not the 1.9 km first stated here — the old figure came from a foliage model run
+  eight times too pessimistic. Four hops covers a dozen leaders strung along five kilometres
+  of path, which is the operational picture in the brief.
 - **Per-hop latency more than triples**, 15 ms to 50 ms.
 - **The relay stagger had to be removed.** Ranking candidates over three slots cost 150 ms per
   hop at 50 ms slots against 50 ms without, and the budget cannot pay it. Coverage-based

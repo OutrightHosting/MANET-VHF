@@ -8,8 +8,9 @@ against comes from the model below.
 Two honest caveats, stated here rather than buried:
 
   * The path-loss exponents are calibrated to give plausible handheld-to-handheld ranges
-    at VHF (about 6 km over open ground, about 550 m through dense woodland), not
-    derived from measurement. Phase 2 exists to replace them.
+    at VHF (about 6 km over open ground, about 1.3 km through dense woodland), not derived
+    from measurement. Phase 2 exists to replace them. The vegetation term itself is not
+    calibrated — it is ITU-R P.833-10 equation (1) with published parameters.
   * Terrain is modelled as an environment applied uniformly to every link, not as real
     topography. A ridge between two specific radios is not represented.
 
@@ -49,6 +50,37 @@ class LinkBudget:
         return self.eirp_dbm + self.rx_offset_db - self.sensitivity_dbm
 
 
+def vegetation_db(d_m, freq_hz):
+    """
+    Excess attenuation through woodland — ITU-R P.833-10 §2.1, equation (1):
+
+        A_ev = A_m [ 1 - exp(-d * gamma / A_m) ]
+
+    **It saturates**, and that is the whole point. The Recommendation is explicit about
+    why: *"if the specific attenuation is sufficiently high, a lower-loss path will exist
+    around the vegetation"* — past some depth the signal stops going through the trees and
+    starts going over and around them, so the excess loss stops growing.
+
+    This replaces `0.2 * f^0.3 * d^0.6`, the early-ITU/Weissberger form, which this model
+    applied unbounded. That form is specified only to about 400 m; run to 2 km it charged
+    87 dB of foliage loss where the measured ceiling is 11. Woodland range came out at
+    528 m, roughly eight times too pessimistic, and every reach conclusion in the project
+    rested on it.
+
+    Parameters from P.833-10 Table 1 and equation (2), fitted to measurements in mixed
+    coniferous-deciduous forest near St Petersburg over paths from a few hundred metres to
+    **7 km**, trees of mean height 16 m: A_m = 1.37 f^0.42, and gamma fitted through the
+    two lowest measured points (0.04 dB/m at 105.9 MHz, 0.12 at 466.475).
+
+    At 155 MHz this gives gamma = 0.053 dB/m and a ceiling of 11.4 dB.
+    """
+    f_mhz = freq_hz / 1e6
+    a_max = 1.37 * (f_mhz ** 0.42)
+    k = math.log(0.12 / 0.04) / math.log(466.475 / 105.9)
+    gamma = 0.04 * (f_mhz / 105.9) ** k
+    return a_max * (1.0 - math.exp(-max(float(d_m), 0.0) * gamma / a_max))
+
+
 @dataclass(frozen=True)
 class Environment:
     name: str
@@ -60,16 +92,19 @@ class Environment:
         lam = C_LIGHT / freq_hz
         loss = 20.0 * math.log10(4.0 * math.pi / lam) + 10.0 * self.exponent * math.log10(d)
         if self.foliage:
-            # ITU-R P.833 in-leaf specific attenuation. Assumes the whole path is
-            # vegetation, which is the point of the woodland case.
-            f_mhz = freq_hz / 1e6
-            loss += 0.2 * (f_mhz ** 0.3) * (d ** 0.6)
+            loss += vegetation_db(d, freq_hz)
         return loss
 
 
 # Calibrated so handheld-to-handheld range lands where field experience puts it.
 OPEN = Environment("open moorland", exponent=3.2, foliage=False)
-WOODLAND = Environment("dense woodland", exponent=3.0, foliage=True)
+
+# 3.5 rather than 3.0. With vegetation now a separate, saturating term, the exponent
+# carries only terrain, ground and diffraction — and it has to carry more of the loss,
+# since the foliage term no longer grows without bound. 3.5 puts handheld range at about
+# 1.3 km, which is where field reports for 5 W VHF in forest actually sit; 3.0 gives
+# 4.4 km, which is optimistic, and the old broken model gave 528 m, which was not close.
+WOODLAND = Environment("dense woodland", exponent=3.5, foliage=True)
 ENVIRONMENTS = {"open": OPEN, "woodland": WOODLAND}
 
 

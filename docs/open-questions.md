@@ -33,6 +33,7 @@ yet in any of them.
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
 | [OQ-0021](#oq-0021) | Many-to-many — streams now cross; `dst` still inert | **Phase 0** | Addressed calls; concurrent-stream quality | Open — no longer total failure |
 | [OQ-0022](#oq-0022) | ~~Which latency budget applies~~ | — | — | **Closed** — 500 ms mouth-to-ear |
+| [OQ-0023](#oq-0023) | ~~Vegetation model wrong by 8×~~ | — | — | **Closed** — ITU-R P.833-10 eq (1) |
 
 ---
 
@@ -1077,3 +1078,54 @@ hops — 200 ms packetisation, ~60 ms de-jitter and codec, 240 ms of network at 
 Original discussion: At a 500 ms budget the 90 ms /
 4 × 22.5 ms alternate reaches seven hops at 30% FEC; at 300 ms mouth-to-ear nothing reaches
 more than three whatever the structure.
+
+## OQ-0023
+### ~~The vegetation model was wrong by a factor of eight~~
+
+**Closed by correction, 2026-08-21.** Recorded because every reach figure in this project
+rested on it, and because it was caught by someone asking why the number looked low rather
+than by any check of ours.
+
+`radio.py` applied `0.2 · f^0.3 · d^0.6` — the early-ITU/Weissberger form — **unbounded**.
+That form is specified only to about 400 m. Run to 2 km it charged **87 dB** of foliage
+loss.
+
+The correct model is [ITU-R P.833-10](https://www.itu.int/dms_pubrec/itu-r/rec/p/R-REC-P.833-10-202109-I!!PDF-E.pdf)
+§2.1 equation (1):
+
+> A_ev = A_m [ 1 − exp(−d γ / A_m) ]
+
+**It saturates**, and the Recommendation states plainly why: *"if the specific attenuation
+is sufficiently high, a lower-loss path will exist around the vegetation."* Past some depth
+the signal stops going through the trees and goes over and around them. The measured ceiling
+at VHF is about 11 dB, not 87.
+
+| Distance | Old, unbounded | ITU P.833 eq (1) |
+|---|---|---|
+| 500 m | 37.8 dB | 10.3 dB |
+| 1 km | 57.3 dB | 11.3 dB |
+| 2 km | 86.8 dB | **11.4 dB** |
+
+Parameters are P.833-10 Table 1 and equation (2), fitted to mixed coniferous-deciduous
+forest near St Petersburg over **paths from a few hundred metres to 7 km** — a measurement
+campaign at the right scale, unlike the 400 m form.
+
+The path-loss exponent for woodland moved 3.0 → 3.5 at the same time. With vegetation now a
+separate saturating term, the exponent carries only terrain and diffraction, and has to
+carry more of the loss.
+
+### What it changes
+
+| | Before | After |
+|---|---|---|
+| Woodland range | 528 m | **1334 m** |
+| Reach at 4 hops | 1.9 km | **4.8 km** |
+| Open moorland | 5933 m (unaffected) | 5933 m |
+
+**So the reach conclusion in [ADR-0009](decisions/0009-frame-structure-with-real-preamble.md)
+was too pessimistic by two and a half times.** Four hops covers a group dispersed over nearly
+five kilometres of woodland, not two. That is a realistic worst case for the operational
+picture in the brief, where a dozen leaders are strung along a path.
+
+It does not change the frame, the FEC shortfall, or the four-hop depth — those come from the
+preamble and the latency budget. It changes what four hops is *worth*.
