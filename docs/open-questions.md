@@ -355,6 +355,50 @@ between 4% and 100% with no relationship to how far apart people are.
 Topology *converges* throughout (100% of samples) and every node remains reachable. The
 routing is not wrong. It simply cannot get its own control traffic delivered.
 
+### Phase 0 findings, part three — a dedicated control slot, tried and measured
+
+The obvious answer is the one TDMA exists to provide: reserve a slot that voice may never
+use. It was tried. The result is instructive and the design is not yet right.
+
+**First, a claim in this register was wrong.** It said a chain carrying continuous voice
+saturates the channel, so there was no airtime to reserve from. Measured: an eleven-hop
+chain under continuous voice occupies **51% of slots**. Nearly half the channel is idle
+even at full load. There is plenty to reserve.
+
+**But a fixed periodic reservation makes things worse, not better.** One slot in eight —
+12.5% of airtime that voice was not using — dropped worst-case delivery under movement
+from 77% to 60%. The reserved slot punches a hole in the relay pipeline: the payload that
+needed it is delayed a slot, the delay cascades down the chain, and it collides with the
+payload behind. The spare airtime is real but it is *structured by the pipeline*, not
+uniformly available for the taking.
+
+| Reserved | Worst | Mean |
+|---|---|---|
+| none | 77.4% | 88.0% |
+| 1 in 8 (12.5%) | 59.9% | 79.7% |
+| 1 in 16 (6%) | 67.6% | 83.9% |
+| 1 in 32 (3%) | 81.8% | 87.4% |
+| 1 in 64 (2%) | 89.8% | 94.5% |
+
+The 1-in-64 row looks like the answer and is not. At that spacing a 132-slot beacon
+interval contains only **two** control slots, so twelve radios crowd onto two and their
+beacons collide wholesale. The apparent gain came from breaking beaconing, and everything
+else broke with it: the clustered case relayed 16,523 times when it should relay none,
+partition collapsed to 2 of 12 reachable, and the static chain fell from 97% to 64%.
+Reverted.
+
+**So the requirement is now precise, and the two halves conflict at present sizing:**
+
+1. Control slots per beacon interval must be **at least the number of radios in earshot**,
+   or beacons collide.
+2. Reserved slots must be **sparse enough not to disrupt the pipeline** — 1 in 32 or
+   rarer, on the evidence above.
+
+At twelve radios and a 132-slot interval those cannot both hold: 1-in-32 gives four slots
+for twelve radios. They reconcile by **lengthening the beacon interval** so that sparse
+reservations still yield one slot per radio — 1 in 32 over a 384-slot interval gives twelve.
+That trades reconvergence speed for airtime and is untested.
+
 ### What a mechanism has to provide
 
 1. Beacons must reach neighbours reliably while voice is flowing, since the relay chain
