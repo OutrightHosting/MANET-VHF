@@ -8,7 +8,7 @@ against comes from the model below.
 Two honest caveats, stated here rather than buried:
 
   * The path-loss exponents are calibrated to give plausible handheld-to-handheld ranges
-    at VHF (about 6 km over open ground, about 1.3 km through dense woodland), not derived
+    at VHF (about 6 km over open ground, about 4.4 km through dense woodland), not derived
     from measurement. Phase 2 exists to replace them. The vegetation term itself is not
     calibrated — it is ITU-R P.833-10 equation (1) with published parameters.
   * Terrain is modelled as an environment applied uniformly to every link, not as real
@@ -99,12 +99,19 @@ class Environment:
 # Calibrated so handheld-to-handheld range lands where field experience puts it.
 OPEN = Environment("open moorland", exponent=3.2, foliage=False)
 
-# 3.5 rather than 3.0. With vegetation now a separate, saturating term, the exponent
-# carries only terrain, ground and diffraction — and it has to carry more of the loss,
-# since the foliage term no longer grows without bound. 3.5 puts handheld range at about
-# 1.3 km, which is where field reports for 5 W VHF in forest actually sit; 3.0 gives
-# 4.4 km, which is optimistic, and the old broken model gave 528 m, which was not close.
-WOODLAND = Environment("dense woodland", exponent=3.5, foliage=True)
+# 3.0, and this number has been changed twice by feel and should not be changed a third
+# time without a measurement.
+#
+# It was 3.0, moved to 3.5 to match "field reports" that were asserted rather than cited,
+# and moved back when the resulting 1.3 km single-hop range was pointed out to be well
+# under what a 5 W VHF handheld actually achieves in woodland. Solving for the exponent
+# that puts single-hop range at 4.8 km gives 2.97.
+#
+# The exponent is the least defensible number in this model. What does NOT depend on it:
+# the mesh multiplies reach by the hop count regardless — 3.6x at four hops at every
+# exponent tried. The multiplier is robust; the absolute figure is not, and Phase 2 exists
+# to measure it.
+WOODLAND = Environment("dense woodland", exponent=3.0, foliage=True)
 ENVIRONMENTS = {"open": OPEN, "woodland": WOODLAND}
 
 

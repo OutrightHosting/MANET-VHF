@@ -29,7 +29,7 @@ yet in any of them.
 | [OQ-0016](#oq-0016) | Confirmed transactions across a moving multi-hop path | Phase 0 | Every confirmed feature in the set | Open |
 | [OQ-0017](#oq-0017) | Concurrent call capacity, clustered vs chained | **Phase 0** | Feature parity with DMR; the 3-vs-4 slot decision | Open |
 | [OQ-0018](#oq-0018) | ~~The header cannot express the previous hop~~ | — | — | **Closed** — field added |
-| [OQ-0019](#oq-0019) | Uniform-environment propagation cannot express a blocked link | **Phase 0** | The confidence attached to OQ-0013 | Open |
+| [OQ-0019](#oq-0019) | Uniform propagation cannot express a blocked link | **Phase 0** | **BLOCKING.** Whether any reach figure means anything | **Open, blocking** |
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
 | [OQ-0021](#oq-0021) | Many-to-many — streams now cross; `dst` still inert | **Phase 0** | Addressed calls; concurrent-stream quality | Open — no longer total failure |
 | [OQ-0022](#oq-0022) | ~~Which latency budget applies~~ | — | — | **Closed** — 500 ms mouth-to-ear |
@@ -822,6 +822,33 @@ rather than a model of it — exactly the property
 
 ## OQ-0019
 ### Uniform-environment propagation cannot express a blocked link
+
+> **Re-graded 2026-08-21 to the most important open item in the project.** Correcting the
+> vegetation model ([OQ-0023](#oq-0023)) raised woodland single-hop range from 528 m to
+> **4.42 km**. At that range a realistic dispersed group — twelve leaders strung over one to
+> three kilometres — is **entirely within direct range of one another**. Measured: 100%
+> delivery, and relaying engages only past about five kilometres of spread.
+>
+> The brief says the opposite, from operational experience: *"Front of group cannot hear
+> back of group... A ridge or 200 m of woodland kills a link that would work over open
+> ground."*
+>
+> Both cannot be true, and the brief is the one describing something that actually happened.
+> So either handheld range in woodland is far shorter than this model now says, or **the
+> mechanism breaking those links is terrain obstruction rather than foliage** — diffraction
+> loss over a ridge, which this model contains no representation of whatsoever.
+>
+> The consequence is uncomfortable and worth stating plainly: **every mesh result in Phase 0
+> was produced by a model that manufactured the need for relaying through excessive foliage
+> attenuation, not through the mechanism the brief describes.** The protocol conclusions —
+> convergence, suppression, election, reuse distance — are about topology and hold whatever
+> creates it. The reach and delivery figures are not, and inherit whatever this model gets
+> wrong.
+>
+> This is now the blocking item for Phase 0 being meaningful, ahead of the slot budget. A
+> per-link obstruction term is not difficult; it is simply never been built.
+
+
 
 Raised by the [OQ-0013](#oq-0013) result, and it bounds how much that result is worth.
 
