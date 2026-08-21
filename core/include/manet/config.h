@@ -41,7 +41,7 @@
 #endif
 
 #ifndef MANET_FRAME_DURATION_US
-#define MANET_FRAME_DURATION_US 200000L
+#define MANET_FRAME_DURATION_US 160000L
 #endif
 
 #ifndef MANET_SLOTS_PER_FRAME
@@ -59,32 +59,44 @@
 #endif
 
 /*
- * Acquisition and signalling preamble, per burst. 154 bits is 8 ms at 19.2 kbps, which is
- * NBWF's measured figure for the same 25 kHz channel — sync 1.5 ms, Start-Of-Message
- * 2.1 ms, Par 1.6 ms, transition 0.1 ms (FFI-rapport 2009/01894 §4.3).
+ * Acquisition preamble and sync word, per burst, in 19.2 kbps bit-times.
  *
- * This was 24 bits, guessed, and being out by six times invalidated the frame structure
- * rather than merely tightening it. It is a fixed cost per burst, so it is what decides
- * how long a slot has to be: short slots are dominated by it.
+ * 56 = a 4-bit AGC-settling preamble plus a 24-bit sync word. Note the units: the CC1200
+ * sends preamble and sync word as 2-GFSK even when the payload is 4-GFSK (SWRU346B
+ * §5.2.1), so each of those 28 transmitted bits costs one symbol — two payload bit-times.
  *
- * NBWF's physical layer is not ours and a simpler CC1200 mode may need far less. Measuring
- * it is now the highest-value item in Phase 1 — the bit rate tunes the budget, the preamble
- * decides the frame.
+ * Was 154, taken from NBWF (FFI-rapport 2009/01894 §4.3). That figure does not survive
+ * reading the source: its own footnote 4 says "This is an estimate", the fields §2.3
+ * specifies sum to 5.3 ms rather than 8, and roughly 1.7 ms of it is a Par field
+ * signalling which of five PHY modes a burst uses plus a symbol-rate transition — neither
+ * of which a single-mode waveform has. Its 1.5 ms sync preamble is a CW tone for
+ * frequency extraction, needed because §4.11 requires NBWF work without GNSS. We are
+ * GPS-disciplined.
+ *
+ * Only about 8-10 bits of the saving comes from knowing slot timing. The rest comes from
+ * the disciplined frequency reference and from not being multi-mode — WHICH MAKES
+ * GPS-DISCIPLINING THE 40 MHz LO A DESIGN COMMITMENT, not an assumption. If the reference
+ * free-runs at +/-2 ppm the CC1200 needs TOC_LIMIT >= 1 and 2-4 bytes of preamble, and
+ * this number goes back to about 128.
+ *
+ * Range: 30 best case (11-bit sync, but its false-sync rate is ~1/s and unlikely to
+ * survive a bench), 40-56 likely, 128 if the LO free-runs. Bench tests in
+ * docs/preamble-budget.md.
  */
 #ifndef MANET_SYNC_BITS
-#define MANET_SYNC_BITS 154L
+#define MANET_SYNC_BITS 56L
 #endif
 
 /* -------------------------------------------------------------------- Voice -- */
 
 /*
- * Codec2 3200 over one 200 ms frame. Voice occupies ONE slot per frame, not several:
+ * Codec2 3200 over one 160 ms frame. Voice occupies ONE slot per frame, not several:
  * spreading a payload over M slots divides the spatial reuse distance by M, and at M=2 the
  * reuse distance falls to 2 hops, which is the hidden-terminal case that forced four slots
  * in the first place. See ADR-0009.
  */
 #ifndef MANET_VOICE_PAYLOAD_BITS
-#define MANET_VOICE_PAYLOAD_BITS 640L
+#define MANET_VOICE_PAYLOAD_BITS 512L
 #endif
 
 /* ----------------------------------------------------------- Header widths -- */

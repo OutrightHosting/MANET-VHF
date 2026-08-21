@@ -11,7 +11,8 @@ yet in any of them.
 
 | # | Question | Answerable in | Blocks | Status |
 |---|---|---|---|---|
-| [OQ-0001](#oq-0001) | Achievable gross bit rate at 25 kHz on CC1200 | Phase 1 | **THE critical path** — the budget cannot close without it | **Open, blocking** |
+| [OQ-0001](#oq-0001) | Achievable gross bit rate at 25 kHz on CC1200 | Phase 1 | **THE critical path** — with the vocoder, decides FEC | **Open, blocking** |
+| [OQ-0024](#oq-0024) | Acquisition preamble — 56 bit-times, or 128 if the LO free-runs | Phase 1 | Reach. 3 hops vs 12 | **Open, blocking** |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1167,3 +1168,23 @@ picture in the brief, where a dozen leaders are strung along a path.
 
 It does not change the frame, the FEC shortfall, or the four-hop depth — those come from the
 preamble and the latency budget. It changes what four hops is *worth*.
+
+## OQ-0024
+### Acquisition preamble — and the LO discipline it depends on
+
+Established in [docs/preamble-budget.md](preamble-budget.md) from the CC1200 datasheet and
+user guide: **56 bit-times** — a 4-bit AGC preamble plus a 24-bit sync word, doubled because
+the CC1200 sends preamble and sync as 2-GFSK while the payload is 4-GFSK.
+
+Down from 154, which came from NBWF and does not survive reading its source: its own
+footnote calls it *"an estimate"*, its itemised fields sum to 5.3 ms not 8, and a third of it
+signals which of five PHY modes a burst uses. We have one.
+
+**The condition, and it is a commitment rather than an assumption:** only 8–10 bit-times of
+the saving comes from GPS slot timing. The rest comes from a **GPS-disciplined 40 MHz
+reference**. With a free-running LO at ±2 ppm the CC1200 needs `TOC_LIMIT ≥ 1` and 2–4 bytes
+of preamble, and the figure returns to about 128 — which puts the network back at three hops.
+[OQ-0003](#oq-0003) treats GPS as a slot-sync question; it is also a frequency question.
+
+Bench test B in the budget document decides it: PER against injected frequency offset with
+`FOC_EN=0`. Flat to ±200 Hz confirms 56; narrower than ±150 Hz means 128.
