@@ -3,6 +3,9 @@
 **Status:** Accepted
 **Date:** 2026-08-21 (recorded; decision predates the repository)
 **Phase:** Pre-development
+**Amended by:** [ADR-0007](0007-packet-switched-frame-architecture.md) — the payload arithmetic in
+*Consequences* below predates the frame header, and understates the deficit. The itemised budget is
+in ADR-0007; the pipelining decision itself is unchanged.
 
 ## Context
 

@@ -3,6 +3,9 @@
 **Status:** Accepted
 **Date:** 2026-08-21 (recorded; decision predates the repository)
 **Phase:** Pre-development
+**Amended by:** [ADR-0007](0007-packet-switched-frame-architecture.md) — routing reads header fields
+only, never payload; and the speculation below about dropping topology control is now largely closed
+against, since individually-addressed traffic needs real routes.
 
 ## Context
 
@@ -39,9 +42,11 @@ A proactive, OLSR-derived design adapted to a slotted, narrowband, half-duplex c
   5 s was designed for links three orders of magnitude faster. Both the interval and the message
   encoding need to be re-derived for this channel, not inherited. See
   [OQ-0004](../open-questions.md).
-- Because the medium is broadcast and voice is one-to-many, full link-state topology dissemination
-  (OLSR's TC messages) may be unnecessary — MPR flooding alone may be sufficient. Confirming this
-  would remove the more expensive half of OLSR's overhead. Phase 0 should test it.
+- ~~Because the medium is broadcast and voice is one-to-many, full link-state topology dissemination
+  (OLSR's TC messages) may be unnecessary — MPR flooding alone may be sufficient.~~ Closed against by
+  [ADR-0007](0007-packet-switched-frame-architecture.md): individual addressing, gateways as
+  destinations, and text/configuration frames all need routes to specific nodes. TC stays. See
+  [OQ-0011](../open-questions.md#oq-0011).
 
 ## Reversal trigger
 

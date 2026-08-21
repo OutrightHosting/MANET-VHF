@@ -18,6 +18,15 @@ Non-negotiable, because "same code" depends on every one of them:
 - **Freestanding C99.** `<stdint.h>`, `<stdbool.h>`, `<string.h>`. Nothing else.
 - **Builds clean** under `-Wall -Wextra -Werror -pedantic` for both host and `arm-none-eabi`.
 
+And from [ADR-0007](../docs/decisions/0007-packet-switched-frame-architecture.md):
+
+- **The routing layer reads header fields only — never payload.** Priority is a header field, so
+  pre-emption does not violate this.
+- **No voice special-casing anywhere below the dispatcher.** Voice is one frame type. If a `switch`
+  on frame type appears outside `dispatch`, something is in the wrong place.
+- **No assumption that a node is a handheld.** Gateways run the identical MAC and routing; the
+  routing layer must not be able to tell them apart.
+
 Anything that wants to break one of these rules belongs in the platform layer, not here.
 
 ## Shape
@@ -33,19 +42,23 @@ Intended modules, in dependency order:
 
 | Module | Responsibility |
 |---|---|
-| `frame` | On-air frame layout, header pack/unpack, TTL, origin ID + sequence |
+| `addr` | Address space, range predicates (individual / gateway / group / broadcast / reserved) |
+| `frame` | On-air header pack/unpack — source, destination, type, sequence, TTL, priority |
 | `slot` | TDMA slot state machine, frame timing, pipelining rule (ADR-0002) |
+| `queue` | Priority queue, four classes, pre-emption policy (Addendum 01 §5) |
 | `neighbour` | Directly-heard neighbour table with link quality, ageing |
 | `mpr` | Multipoint relay selection over the two-hop neighbourhood (ADR-0003) |
 | `dedup` | Duplicate suppression window, passive acknowledgement |
+| `dispatch` | Receive path — switch on frame type. The **only** place that knows what a payload is |
 | `node` | Composition of the above; the object the platform instantiates |
 
-`frame` and `slot` come first — they are what [OQ-0002](../docs/open-questions.md#oq-0002) and
-[OQ-0009](../docs/open-questions.md#oq-0009) are about, and nothing above them can be settled until
-they are.
+`addr` and `frame` come first, then `slot`. The header format is the one artefact here that cannot
+be changed after radios ship, and it is currently the binding constraint on the whole design — see
+[OQ-0012](../docs/open-questions.md#oq-0012) and [OQ-0002](../docs/open-questions.md#oq-0002).
+Nothing above `slot` can be settled until those are.
 
 ## What is *not* here
 
-Codec2, the CC1200 driver, GPS/PPS handling, the audio path, and the simulated propagation model.
-All platform. The core does not know whether it is running on a bench radio or inside a Python
-process, and that is the point.
+Codec2, the CC1200 driver, GPS/PPS handling, the audio path, the gateway's wired interface, and the
+simulated propagation model. All platform. The core does not know whether it is running on a bench
+radio, inside a gateway, or inside a Python process, and that is the point.

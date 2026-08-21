@@ -17,6 +17,7 @@ The protocol logic under test is not Python — see
 | Collision | Two transmissions in one slot within range of a receiver — what that receiver gets |
 | Scenario | Declarative descriptions of the five Phase 0 questions, runnable as regression tests |
 | Metrics | Convergence time, relay counts, end-to-end latency per hop count, beacon overhead as % of channel capacity |
+| Traffic | Mixed-priority load — voice, signalling and best-effort data — to exercise the queue and pre-emption policy in [Addendum 01 §5](../docs/addendum-01-packet-architecture.md#5-priority-and-queueing) |
 
 ## Phase 0 must answer
 
@@ -28,9 +29,14 @@ From [engineering brief §6](../docs/engineering-brief.md#phase-0--simulation-no
 4. What is beacon overhead as a percentage of channel capacity?
 5. What happens when the network partitions and rejoins?
 
-Plus, ahead of all five, [OQ-0002](../docs/open-questions.md#oq-0002) — the slot budget arithmetic
-that does not currently close. There is little point converging a routing protocol onto a frame
-structure that cannot carry the payload.
+Plus, ahead of all five, three items that decide the frame structure itself. There is little point
+converging a routing protocol onto a frame that cannot carry the payload:
+
+- [OQ-0002](../docs/open-questions.md#oq-0002) — the slot budget, which does not close once the
+  header is itemised. Five escape routes, none picked.
+- [OQ-0012](../docs/open-questions.md#oq-0012) — header field widths. Permanent once radios ship.
+- [OQ-0013](../docs/open-questions.md#oq-0013) — spatial reuse distance, which decides whether the
+  strongest escape route from OQ-0002 is safe.
 
 Gross bit rate must be a **swept parameter**, not a constant — see
 [OQ-0001](../docs/open-questions.md#oq-0001).

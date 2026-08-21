@@ -14,6 +14,7 @@ definition, the decisions already taken, and the questions still open.
 | | |
 |---|---|
 | [Engineering brief](docs/engineering-brief.md) | What this is, why it exists, and what "done" looks like. Read first. |
+| [Addendum 01](docs/addendum-01-packet-architecture.md) | Packet architecture and gateway nodes. An architectural constraint, not a feature list. Read before writing any MAC, framing or routing code |
 | [Decision log](docs/decisions/) | What has been decided and why — each with the observation that would reverse it |
 | [Open questions](docs/open-questions.md) | What has not been decided, what it blocks, and when it can be answered |
 
@@ -23,14 +24,21 @@ definition, the decisions already taken, and the questions still open.
 core/       protocol core — C99, freestanding. The code that ships.
 sim/        Phase 0 simulation harness — Python, drives core/ via CFFI
 firmware/   Phase 1 STM32F4 target — empty until Phase 0 passes
-docs/       brief, decision log, open questions
+docs/       brief, addendum, decision log, open questions
 ```
 
-The single architectural commitment worth knowing before reading anything else: **the MAC and
-routing logic exists once, in C, in `core/`.** The simulator and the firmware compile the same
-translation units. Phase 0's warranty — "if the protocol fails here it will fail in hardware" — only
-holds if the thing simulated is the thing flashed. See
-[ADR-0006](docs/decisions/0006-c-core-python-harness.md).
+Two architectural commitments worth knowing before reading anything else.
+
+**The MAC and routing logic exists once, in C, in `core/`.** The simulator and the firmware compile
+the same translation units. Phase 0's warranty — "if the protocol fails here it will fail in
+hardware" — only holds if the thing simulated is the thing flashed.
+([ADR-0006](docs/decisions/0006-c-core-python-harness.md))
+
+**This is a packet network that carries voice, not a voice system with signalling attached.** Every
+transmission is an addressed, typed frame; voice is one type among several; the routing layer reads
+headers and never payload. Not a request for features — a constraint on structure, so that adding
+text, position reporting or a dispatch console later does not mean rewriting the MAC.
+([ADR-0007](docs/decisions/0007-packet-switched-frame-architecture.md))
 
 ## Phases
 
@@ -45,14 +53,27 @@ Phase 0 is where the project is. Do not buy hardware until it passes.
 
 ## Before Phase 0 starts
 
-[OQ-0002](docs/open-questions.md#oq-0002) — the slot budget does not close as specified. At
-19.2 kbps a 15 ms slot yields ~264 usable bits after a DMR-proportional guard interval; Codec2 3200
-plus 47% FEC needs 282. Four ways out, each changing something currently marked decided. This is the
+**[OQ-0002](docs/open-questions.md#oq-0002) — the slot budget does not close, structurally.** At
+19.2 kbps a 15 ms slot yields ~264 on-air bits after a DMR-proportional guard. Sync takes 24, the
+frame header 34, Codec2 3200 takes 192 — leaving **14 bits for FEC**. That is a CRC, not error
+correction, on a channel with no retransmission. Five escape routes are costed in the tracker; the
+strongest is 3 slots × 20 ms, which restores a 45% FEC ratio. None is picked. This is the
 simulator's first job, ahead of the five questions in the brief.
+
+[OQ-0012](docs/open-questions.md#oq-0012) — header field widths. Every bit is a bit of FEC, and
+there are only 14 to spend. The header format is the one artefact that cannot change after radios
+ship.
+
+[OQ-0013](docs/open-questions.md#oq-0013) — spatial reuse distance. Under pipelining the originator
+and the node N hops away transmit in the same slot simultaneously, so slot count *is* reuse
+distance. This decides whether the 3-slot escape from OQ-0002 is safe, and it is the real cost of
+that route — not hop latency, which the brief identifies as the trade but which passes with large
+margin either way.
 
 [OQ-0009](docs/open-questions.md#oq-0009) — channel access is unspecified. The brief defines a frame
 and a pipelining rule but never says how a node acquires the right to originate, or what happens
-when two leaders press PTT in the same frame.
+when two leaders press PTT in the same frame. Addendum 01 widens this: four priority classes now
+contend for the same slots, with a stated policy and no mechanism.
 
 ## Regulatory position
 

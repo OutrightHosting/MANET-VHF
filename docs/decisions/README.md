@@ -5,7 +5,7 @@ order taken, never renumbered.
 
 Most of ADR-0001 through ADR-0005 record decisions that were already made before this repository
 existed — they are documented in [the engineering brief](../engineering-brief.md) §4 and §5 as
-"decided". Writing them up here is not re-opening them. It is recording *why*, so that when Phase 0
+"decided". ADR-0007 records [Addendum 01](../addendum-01-packet-architecture.md). Writing them up here is not re-opening them. It is recording *why*, so that when Phase 0
 produces a result that contradicts one, we can tell the difference between a decision that was
 wrong and a decision whose premise changed.
 
@@ -21,6 +21,7 @@ decision stands and we stop discussing it.
 | [0004](0004-codec2-3200.md) | Codec2 at 3200 bps as the vocoder | Accepted |
 | [0005](0005-cc1200-stm32-bench-platform.md) | CC1200 + STM32F4 bench platform; SDR and adapted DMR rejected | Accepted |
 | [0006](0006-c-core-python-harness.md) | One protocol implementation in C, driven by a Python simulation harness | Accepted |
+| [0007](0007-packet-switched-frame-architecture.md) | Packet-switched frame architecture with typed, addressed frames | Accepted |
 
 ## Format
 
@@ -28,6 +29,7 @@ decision stands and we stop discussing it.
 # ADR-NNNN: Title
 
 Status:  Proposed | Accepted | Superseded by ADR-NNNN
+Amends / Amended by: ADR-NNNN (optional)
 Date:    YYYY-MM-DD
 Phase:   Pre-development | Phase 0 | Phase 1 | ...
 

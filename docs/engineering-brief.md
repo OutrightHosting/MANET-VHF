@@ -4,6 +4,13 @@
 **Status:** Pre-development. Nothing built. This document defines the target.
 **Audience:** Development agent / engineer starting from zero
 
+> **Amended by [Addendum 01 — Packet Architecture and Gateway Nodes](addendum-01-packet-architecture.md).**
+> Nothing in the RF, MAC, routing or voice layers below changes. The addendum constrains how the
+> frame format and dispatch logic are structured — every transmission is an addressed, typed
+> frame, and voice is one type among several. It also introduces a second node class (gateway).
+> Read it before writing any MAC, framing or routing code. See
+> [ADR-0007](decisions/0007-packet-switched-frame-architecture.md).
+
 ---
 
 ## 1. What this is
