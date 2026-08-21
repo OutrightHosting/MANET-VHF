@@ -1,5 +1,12 @@
 # NBWF — the same system, standardised, and what it tells us
 
+> **Superseded in scope by [nbwf-lessons.md](nbwf-lessons.md), 2026-08-21.** This document
+> was written from a partial read that extracted the per-burst overhead figure and little
+> else. The full read found material that changes decisions — FFI's retreat from automatic
+> relaying, their CPM physical layer, their γ = 4 propagation exponent against our 2.97, and
+> answers to five of our open questions. Read that one first; this remains accurate on the
+> overhead comparison.
+
 **Source:** Jodalen, Solberg & Haavik, *NATO Narrowband Waveform (NBWF) — overview of link
 layer design*, FFI-rapport 2009/01894, Norwegian Defence Research Establishment, 28 March
 2011. Read in full. PDF kept alongside this file.
