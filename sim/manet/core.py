@@ -49,6 +49,8 @@ _SIGS = {
     "mb_sched_suppress": (ctypes.c_int, [_P, _U, _U]),
     "mb_sched_depth": (_UL, [_P]),
     "mb_slot_start_us": (_ULL, [_ULL]),
+    "mb_slot_is_control": (ctypes.c_int, [_ULL]),
+    "mb_slot_next_voice": (_ULL, [_ULL]),
     "mb_nb_init": (None, [_P, _U]),
     "mb_nb_heard": (ctypes.c_int, [_P, _U, _U, _ULL]),
     "mb_nb_advert": (ctypes.c_int, [_P, _U, _U8P, _U8P, _UL, _ULL]),
@@ -106,6 +108,15 @@ class Config:
 
 
 CONFIG = Config()
+
+
+def is_control_slot(slot):
+    """Reserved for control traffic. Voice never transmits here."""
+    return bool(_lib.mb_slot_is_control(slot))
+
+
+def next_voice_slot(slot):
+    return int(_lib.mb_slot_next_voice(slot))
 
 
 def _buf(which):

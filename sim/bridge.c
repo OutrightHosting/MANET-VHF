@@ -311,3 +311,13 @@ EXPORT unsigned long mb_nama_contenders(const void *t)
 {
     return (unsigned long)manet_nama_contenders((const manet_nb_table_t *)t);
 }
+
+EXPORT int mb_slot_is_control(unsigned long long n)
+{
+    return manet_slot_is_control((uint64_t)n) ? 1 : 0;
+}
+
+EXPORT unsigned long long mb_slot_next_voice(unsigned long long n)
+{
+    return (unsigned long long)manet_slot_next_voice((uint64_t)n);
+}

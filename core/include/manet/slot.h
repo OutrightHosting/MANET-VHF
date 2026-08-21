@@ -59,6 +59,36 @@ uint64_t manet_slot_start_us(uint64_t number);
  */
 uint64_t manet_slot_burst_end_us(uint64_t number);
 
+/*
+ * True if this slot is reserved for control traffic. Voice never transmits in one.
+ *
+ * The reservation is what gives beacons airtime that a talker cannot take, and the
+ * superframe is what makes it affordable — one slot in thirty-two rather than one in four,
+ * which is the difference between 3% of the channel and 25% of it.
+ *
+ * PROVIDED BUT DELIBERATELY NOT USED. Measured against NAMA election alone, reserving
+ * control slots costs more than it buys at every superframe length tried:
+ *
+ *              cluster relays  mobility worst  static chain (woodland)
+ *   NAMA only              0           90.3%                    92.5%
+ *   + 1 slot in 8         99           88.0%                    83.5%
+ *   + 1 slot in 32      8351           89.0%                    83.5%
+ *
+ * The reason is the same one that defeated an earlier attempt at fixed reserved slots: a
+ * reservation punches a hole in the relay pipeline, the payload that needed that slot is
+ * delayed, and the delay cascades into the payload behind. NAMA already prevents
+ * beacon-against-beacon collisions without taking any airtime at all, which was the
+ * reservation's whole purpose.
+ *
+ * Kept because the primitive is correct and tested, and because a configuration with more
+ * slack — a lower vocoder rate, or a measured bit rate above 19.2 kbps — could afford it.
+ * Do not wire it in without re-measuring.
+ */
+bool manet_slot_is_control(uint64_t number);
+
+/* The next slot at or after `number` that voice may use. */
+uint64_t manet_slot_next_voice(uint64_t number);
+
 /* True if t_us falls inside a burst rather than a guard interval. */
 bool manet_slot_in_burst(uint64_t t_us);
 

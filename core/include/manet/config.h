@@ -236,6 +236,27 @@
 #define MANET_NAMA_MIN_CONTENDERS 12u
 #endif
 
+/*
+ * The superframe: a slower layer above the 60 ms voice frame, where slot ownership lives.
+ *
+ * Ownership cannot live inside the voice frame. A two-hop neighbourhood of eleven radios
+ * needs at least twelve distinct contention contexts and a four-slot frame offers four.
+ * Every earlier attempt to reserve control airtime inside the frame failed for that
+ * reason, and the failures looked like tuning problems rather than a sizing error.
+ *
+ * One slot per superframe is control-only and voice never uses it. At eight frames that
+ * is one slot in thirty-two — about 3% of airtime, taken from the ~49% a voice-carrying
+ * chain leaves idle. Which radio may use a given control slot is settled by NAMA
+ * election, so twelve radios share two or three control slots per beacon interval without
+ * ever colliding.
+ */
+#ifndef MANET_SUPERFRAME_FRAMES
+#define MANET_SUPERFRAME_FRAMES 8u
+#endif
+
+#define MANET_SUPERFRAME_SLOTS \
+    ((uint64_t)MANET_SUPERFRAME_FRAMES * (uint64_t)MANET_SLOTS_PER_FRAME)
+
 /* Largest PDU that can ride in one slot: everything on air except the sync word.
  * Header and FEC are carried inside this. */
 #define MANET_MAX_PDU_BITS  (MANET_SLOT_ONAIR_BITS - MANET_SYNC_BITS)

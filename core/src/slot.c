@@ -30,6 +30,18 @@ uint64_t manet_slot_burst_end_us(uint64_t number)
     return manet_slot_start_us(number) + (uint64_t)MANET_BURST_US;
 }
 
+bool manet_slot_is_control(uint64_t number)
+{
+    /* The last slot of each superframe. Any fixed position would do; the last keeps it
+     * clear of the frame boundary where a talker starts a burst. */
+    return (number % MANET_SUPERFRAME_SLOTS) == (MANET_SUPERFRAME_SLOTS - 1u);
+}
+
+uint64_t manet_slot_next_voice(uint64_t number)
+{
+    return manet_slot_is_control(number) ? (number + 1u) : number;
+}
+
 bool manet_slot_in_burst(uint64_t t_us)
 {
     return (t_us % (uint64_t)MANET_SLOT_DURATION_US) < (uint64_t)MANET_BURST_US;
