@@ -23,7 +23,7 @@ definition, the decisions already taken, and the questions still open.
 
 ```
 core/       protocol core — C99, freestanding. The code that ships.
-              addr, frame, slot built; neighbour and mpr next
+              addr, frame, slot, neighbour, mpr built
 sim/        Phase 0 simulation harness — Python, drives core/ via CFFI
 firmware/   Phase 1 STM32F4 target — empty until Phase 0 passes
 tools/      budget sweep and other Phase 0 instrumentation

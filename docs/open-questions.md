@@ -79,7 +79,7 @@ Propagation delay is negligible: 50 µs at 15 km.
 |---|---|---|
 | 1 | **Raise gross rate** to ~22 kbps | Depends entirely on [OQ-0001](#oq-0001) and is not in our gift. Cannot be planned on |
 | 2 | **Cut FEC and framing** | **Eliminated.** Itemisation shows FEC is what has already been squeezed to nothing; and a zero-length header still leaves only 25% — see findings below |
-| 3 | **3 slots × 20 ms** | **Currently the strongest.** Leaves 102 bits for FEC — a 45% ratio, landing on the brief's own 47% target. Costs spatial reuse margin, not latency ([OQ-0013](#oq-0013)) |
+| 3 | **3 slots × 20 ms** | **Still the strongest, but no longer cheap.** Leaves 102 bits for FEC — a 45% ratio, on the brief's own target. Now known to cost three separate things: a hop of spatial reuse margin ([OQ-0013](#oq-0013)), a concurrent call when clustered ([OQ-0017](#oq-0017)), and a third more beacon airtime ([OQ-0004](#oq-0004)) |
 | 4 | **120 ms voice superframe** | Still viable. One codec payload spans two slot opportunities; preserves 4 slots and the gross rate, at the cost of latency and framing complexity. Also halves per-payload header overhead, which is worth something |
 | 5 | **Drop to Codec2 2400** | Newly worth listing. Frees 48 bits and directly relieves the deficit, at the cost of hard requirement 7 becoming a much closer call. Prefer 3 and 4 first |
 
@@ -111,7 +111,10 @@ This eliminates route 2 completely and confirms the problem is structural: slot 
 vocoder. Nothing else moves it.
 
 Route 3 (3×20 ms) is the only configuration in the sweep that both closes and holds at 19.2 kbps
-without touching the vocoder. It remains contingent on [OQ-0013](#oq-0013).
+without touching the vocoder. But three separate costs have since attached to it —
+[OQ-0013](#oq-0013), [OQ-0017](#oq-0017) and [OQ-0004](#oq-0004) — and route 4, the 120 ms
+superframe, pays none of them. Route 4 has not been modelled and should be, before route 3 is
+adopted by default.
 
 Phase 0 should still evaluate routes 3, 4 and 5 against simulated behaviour rather than adopting
 route 3 on budget grounds alone — the budget says which frames can exist, not which ones work.
@@ -158,6 +161,33 @@ different costs, and the choice interacts with [OQ-0005](#oq-0005) and [OQ-0009]
 
 Interacts with [OQ-0002](#oq-0002) in an uncomfortable direction: a dedicated control slot is the
 cleanest answer and the one the payload budget can least afford.
+
+### Phase 0 findings — 2026-08-21
+
+With `neighbour` built, the beacon is a real object and its cost is computable. From
+`make budget`, for 12 leaders at the inherited 2 s interval:
+
+| | 4 × 15 ms | 3 × 20 ms |
+|---|---|---|
+| One beacon | 148 bits | 148 bits |
+| What beacons **say**, as a share of channel capacity | 4.6% | 4.6% |
+| What beacons **occupy**, as a share of slots | **9.0%** | **12.1%** |
+| Wasted to packing, per beacon | 92 bits | 180 bits |
+
+**The gap between saying and occupying is the whole problem.** A beacon is 148 bits; a slot is 240
+or 328. A slot is the smallest thing that can be transmitted, so the remainder is thrown away. The
+information cost is comfortable; the airtime cost is three times worse and comes straight out of
+voice.
+
+**And the 3-slot structure is worse at it**, because its slots are larger and therefore waste more —
+12.1% against 9.0%. This is a **third cost of the leading escape route from
+[OQ-0002](#oq-0002)**, alongside the reuse-distance cost in [OQ-0013](#oq-0013) and the concurrent
+call cost in [OQ-0017](#oq-0017). None of the three is individually decisive. Together they mean
+3 × 20 ms should not be adopted on budget arithmetic alone.
+
+Three ways to close the packing gap, none designed: pack several beacons into one slot;
+piggyback beacon data on voice frames; or lengthen the interval and accept slower reconvergence.
+The interval itself is still inherited from OLSR rather than derived — see above.
 
 ## OQ-0005
 ### Slot count

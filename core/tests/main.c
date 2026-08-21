@@ -15,6 +15,8 @@ int main(void)
     test_frame_all();
     printf("slot\n");
     test_slot_all();
+    printf("neighbour + mpr\n");
+    test_mesh_all();
 
     printf("\n%d checks, %d failures\n", manet_test_checks, manet_test_failures);
     return manet_test_failures == 0 ? 0 : 1;

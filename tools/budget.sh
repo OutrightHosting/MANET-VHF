@@ -38,6 +38,16 @@ row '4x15ms 19.2k codec2400' -DMANET_VOICE_PAYLOAD_BITS=144L
 row '4x15ms 19.2k seq 6b'    -DMANET_SEQ_BITS=6u
 
 echo
+echo 'Beacon overhead at the default interval — OQ-0004, first cut:'
+echo
+$CC $CFLAGS -DBUDGET_BEACON tools/budget.c -o "$OUT/beacon4"
+"$OUT/beacon4"
+echo
+echo '  (the same, at 3 x 20 ms)'
+$CC $CFLAGS -DBUDGET_BEACON -DMANET_SLOTS_PER_FRAME=3L tools/budget.c -o "$OUT/beacon3"
+"$OUT/beacon3"
+
+echo
 echo 'Notes:'
 echo '  FEC ratio is FEC bits as a percentage of what they protect (header + voice).'
 echo '  DMR runs ~47%. Below ~25% is unlikely to be viable on a channel with no'
@@ -54,3 +64,8 @@ echo '  only trimmable field is the sequence number: 8->6 bits recovers 2 bits o
 echo '  More decisively, at 4x15ms/19.2k/Codec2-3200 a ZERO-length header would still'
 echo '  leave only 264-24-192 = 48 bits, a 25% ratio against DMR\047s 47%. The 4-slot'
 echo '  configuration cannot reach DMR-equivalent protection under any header design.'
+echo
+echo '  On beacons: the gap between what they SAY and what they OCCUPY is packing loss.'
+echo '  A beacon is far smaller than a slot, and a slot is the smallest thing that can'
+echo '  be transmitted, so most of it is wasted. Closing that gap means packing several'
+echo '  beacons per slot or piggybacking them on voice. Neither is designed. OQ-0004.'

@@ -46,13 +46,14 @@ Intended modules, in dependency order:
 | `frame` | ✅ On-air header pack/unpack — source, destination, type, sequence, TTL, priority |
 | `slot` | ✅ TDMA slot state machine, frame timing, pipelining rule (ADR-0002) |
 | `queue` | Priority queue, four classes, pre-emption policy (Addendum 01 §5) |
-| `neighbour` | Directly-heard neighbour table with link quality, ageing |
-| `mpr` | Multipoint relay selection over the two-hop neighbourhood (ADR-0003) |
+| `neighbour` | ✅ Directly-heard neighbour table with link quality, ageing |
+| `mpr` | ✅ Multipoint relay selection over the two-hop neighbourhood (ADR-0003) |
 | `dedup` | Duplicate suppression window, passive acknowledgement |
 | `dispatch` | Receive path — switch on frame type. The **only** place that knows what a payload is |
 | `node` | Composition of the above; the object the platform instantiates |
 
-`addr`, `frame` and `slot` are built (✅). `neighbour` and `mpr` are next. The header format is the one artefact here that
+`addr`, `frame`, `slot`, `neighbour` and `mpr` are built (✅). `dedup`, `queue`, `dispatch` and
+`node` remain, then the Python harness. The header format is the one artefact here that
 cannot be changed after radios ship — see [OQ-0012](../docs/open-questions.md#oq-0012).
 
 `config.h` holds the compile-time parameters and computes the slot budget from them, enforced by
@@ -84,8 +85,7 @@ between simulator and firmware that the whole approach depends on.
 libgcc *integer* helpers are permitted and `__aeabi_uldivmod` is expected: cortex-m4 has no 64-bit
 divide instruction. Floating-point helpers are a hard failure.
 
-Current cost on target, with `addr`, `frame` and `slot` built: **1269 bytes of flash, 0 data,
-0 bss.** The two zeroes are the "no globals, no mutable statics" rule confirmed by the linker rather
+Current cost on target: **2909 bytes of flash, 0 data, 0 bss.** The two zeroes are the "no globals, no mutable statics" rule confirmed by the linker rather
 than by inspection.
 
 A note on `_Static_assert`: it is C11, and this core is C99. `config.h` uses it when the translation

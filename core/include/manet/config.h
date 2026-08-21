@@ -149,6 +149,43 @@
 #define MANET_FEC_PERCENT \
     ((MANET_FEC_BITS_AVAILABLE * 100L) / (MANET_HEADER_BITS + MANET_VOICE_PAYLOAD_BITS))
 
+/* ---------------------------------------------------- Neighbourhood sizing -- */
+
+/* Fixed tables, no allocation. Sized for the operational case (12 leaders) with
+ * headroom, not for a large deployment. */
+#ifndef MANET_MAX_NEIGHBOURS
+#define MANET_MAX_NEIGHBOURS 16u
+#endif
+
+/* How many neighbours one neighbour may advertise to us. Caps the two-hop view. */
+#ifndef MANET_MAX_ADVERTISED
+#define MANET_MAX_ADVERTISED 16u
+#endif
+
+#ifndef MANET_MAX_TWO_HOP
+#define MANET_MAX_TWO_HOP 32u
+#endif
+
+/*
+ * Beacon interval, in frames. 33 frames is ~2 s at 60 ms, which is OLSR's default HELLO
+ * interval — inherited, NOT derived, and almost certainly wrong for a link three orders
+ * of magnitude slower than OLSR was designed for. This is OQ-0004 and Phase 0 is meant
+ * to sweep it.
+ */
+#ifndef MANET_BEACON_INTERVAL_FRAMES
+#define MANET_BEACON_INTERVAL_FRAMES 33u
+#endif
+
+/* Miss this many beacons and the neighbour is gone. OLSR uses 3. */
+#ifndef MANET_NB_HOLD_MULTIPLE
+#define MANET_NB_HOLD_MULTIPLE 3u
+#endif
+
+/* The group this is actually for. Used only to compute beacon overhead. */
+#ifndef MANET_TYPICAL_GROUP
+#define MANET_TYPICAL_GROUP 12u
+#endif
+
 /* Largest PDU that can ride in one slot: everything on air except the sync word.
  * Header and FEC are carried inside this. */
 #define MANET_MAX_PDU_BITS  (MANET_SLOT_ONAIR_BITS - MANET_SYNC_BITS)
@@ -159,6 +196,46 @@
 #ifndef MANET_SCHED_DEPTH
 #define MANET_SCHED_DEPTH 4u
 #endif
+
+#define MANET_BEACON_INTERVAL_SLOTS \
+    ((uint64_t)MANET_BEACON_INTERVAL_FRAMES * (uint64_t)MANET_SLOTS_PER_FRAME)
+#define MANET_NB_HOLD_SLOTS \
+    (MANET_BEACON_INTERVAL_SLOTS * (uint64_t)MANET_NB_HOLD_MULTIPLE)
+
+/* ------------------------------------------------------- Beacon arithmetic -- */
+/*
+ * One advertised neighbour costs an address plus a two-bit link code (asymmetric,
+ * symmetric, or "I have selected you as my relay"). A beacon carries the frame header,
+ * a count, and one entry per neighbour heard.
+ *
+ * Two different costs follow, and the gap between them is the whole of OQ-0004:
+ *
+ *   MANET_BEACON_INFO_PERMILLE — what the beacons actually *say*, as a share of channel
+ *   capacity. Small.
+ *
+ *   MANET_BEACON_SLOT_PERMILLE — what they *occupy*. A beacon needs a whole slot, and a
+ *   slot is far bigger than a beacon, so this is several times worse. Closing the gap
+ *   means packing several beacons into a slot or piggybacking them on voice — neither
+ *   of which is designed.
+ */
+#define MANET_BEACON_ENTRY_BITS ((long)(MANET_ADDR_BITS + 2u))
+#define MANET_BEACON_COUNT_BITS 4L
+#define MANET_BEACON_BITS \
+    (MANET_HEADER_BITS + MANET_BEACON_COUNT_BITS \
+     + ((long)(MANET_TYPICAL_GROUP - 1u) * MANET_BEACON_ENTRY_BITS))
+
+/* Channel bits and slots available in one beacon interval. */
+#define MANET_INTERVAL_BITS \
+    ((MANET_GROSS_BITRATE_BPS * (long)MANET_BEACON_INTERVAL_FRAMES * MANET_FRAME_DURATION_US) \
+     / 1000000L)
+#define MANET_INTERVAL_SLOTS \
+    ((long)MANET_BEACON_INTERVAL_FRAMES * MANET_SLOTS_PER_FRAME)
+
+/* Every node beacons once per interval. Parts per thousand, integer only. */
+#define MANET_BEACON_INFO_PERMILLE \
+    ((MANET_BEACON_BITS * (long)MANET_TYPICAL_GROUP * 1000L) / MANET_INTERVAL_BITS)
+#define MANET_BEACON_SLOT_PERMILLE \
+    (((long)MANET_TYPICAL_GROUP * 1000L) / MANET_INTERVAL_SLOTS)
 
 /* ------------------------------------------------------- Budget enforcement -- */
 
@@ -190,6 +267,10 @@ MANET_STATIC_ASSERT(MANET_TYPE_BITS >= 4u, "frame type space must leave room to 
 MANET_STATIC_ASSERT(MANET_HEADER_BITS <= 64, "header implausibly large; check field widths");
 MANET_STATIC_ASSERT(MANET_MAX_PDU_BITS > MANET_HEADER_BITS, "no room for a PDU after sync");
 MANET_STATIC_ASSERT(MANET_SCHED_DEPTH >= 2u, "pipelining needs to schedule at least one slot ahead");
+MANET_STATIC_ASSERT(MANET_MAX_NEIGHBOURS >= MANET_TYPICAL_GROUP - 1u,
+                    "neighbour table cannot hold a fully-connected group");
+MANET_STATIC_ASSERT(MANET_BEACON_BITS <= MANET_MAX_PDU_BITS,
+                    "a beacon for a typical group does not fit in one slot");
 MANET_STATIC_ASSERT((MANET_FRAME_DURATION_US % MANET_SLOTS_PER_FRAME) == 0,
                     "frame does not divide evenly into slots");
 

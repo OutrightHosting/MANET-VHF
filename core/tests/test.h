@@ -35,5 +35,6 @@ void test_addr_all(void);
 void test_frame_all(void);
 void test_config_all(void);
 void test_slot_all(void);
+void test_mesh_all(void);
 
 #endif /* MANET_TEST_H */
