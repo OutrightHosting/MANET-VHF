@@ -72,9 +72,29 @@ been filed rather than left to make the phase feel unfinished:
       hops at every exponent**, per-hop delivery actually better at the pessimistic one. Also
       caught the gate's defect class in `hill.py`, whose geometry was hardcoded and is now
       derived. [OQ-0023](open-questions.md#oq-0023) closed.
-- [ ] **B-05 · Neighbour table overflows at 24+ co-located nodes.** `MANET_MAX_NEIGHBOURS` is
-      16; the scale agent had to design around it. Silently caps every dense measurement.
-      *Half a day.*
+- [x] **B-05 · Neighbour table overflowed silently.** ✅ **Fixed 2026-08-22.** The table was
+      first-come-first-served with no eviction: once full, a radio could never learn a new
+      neighbour however useful, and however stale what it held. The core returned
+      `MANET_ERR_BUFFER` honestly and `world.py:291` discarded it.
+
+      **The flat-cluster case hid it** — 30,000 refusals across 48 radios with delivery at
+      100%, because everyone hears the talker directly and the table never matters. It only
+      bites where density and multi-hop meet, which is `sim/scenarios/neighbour_pressure.py`:
+
+      | radios | worst before | worst after | mean before | mean after |
+      |---|---|---|---|---|
+      | 24 | 95.0% | 95.0% | 96.3% | 96.3% |
+      | 32 | 92.5% | 91.9% | 94.3% | 93.9% |
+      | 40 | 89.5% | 90.9% | 93.6% | 94.0% |
+      | **48** | **68.2%** | **84.7%** | 84.5% | **91.3%** |
+
+      Eviction order: expired first, then asymmetric, then symmetric — never one that
+      selected us as its relay while it is still present, since dropping that silently
+      breaks its forwarding path. A newcomer must beat the incumbent by
+      `MANET_NB_EVICT_MARGIN` or it is refused, which is what stops two similar neighbours
+      displacing each other indefinitely. **84.7% is better, not good** — voice wants ~90%,
+      and the residue at that density is likely the two-hop table (`MANET_MAX_TWO_HOP`),
+      not this one.
 - [ ] **B-06 · Barrage reconverges 7.6× slower after a partition.** Three minutes of a safety
       network not working is a product problem, not a metric. *Days.*
 - [ ] **B-08 · Possible regression in single-talker chain delivery.** An agent measured

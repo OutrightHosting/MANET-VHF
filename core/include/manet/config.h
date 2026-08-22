@@ -207,6 +207,24 @@
 #define MANET_MAX_NEIGHBOURS 16u
 #endif
 
+/*
+ * How much better a newcomer must be before it displaces a live neighbour when the table
+ * is full.
+ *
+ * The table was first-come-first-served with no eviction: once full, a radio could never
+ * learn a new neighbour however useful, and however stale the entries it was holding.
+ * Harmless in a flat cluster -- everyone hears the talker directly, so 30,000 refused
+ * entries at 48 radios cost nothing measurable -- but in a dense multi-hop topology the
+ * table fills with whoever spoke first rather than whoever matters, and worst-case
+ * delivery fell from 95% to 68.2% across 48 radios in twelve groups.
+ *
+ * Quality is 0..255, so 24 is roughly a tenth of the scale. Displacing on any improvement
+ * at all would let two similar neighbours evict each other indefinitely.
+ */
+#ifndef MANET_NB_EVICT_MARGIN
+#define MANET_NB_EVICT_MARGIN 24u
+#endif
+
 /* How many neighbours one neighbour may advertise to us. Caps the two-hop view. */
 #ifndef MANET_MAX_ADVERTISED
 #define MANET_MAX_ADVERTISED 16u

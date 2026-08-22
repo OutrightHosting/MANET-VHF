@@ -11,14 +11,102 @@ static manet_neighbour_t *find(manet_nb_table_t *t, manet_addr_t a)
     return NULL;
 }
 
-static manet_neighbour_t *find_or_add(manet_nb_table_t *t, manet_addr_t a)
+/*
+ * When the table is full, which entry is least worth keeping -- or none.
+ *
+ * Strict order of preference, and the last clause matters as much as the first:
+ *
+ *   1. An expired entry. Not heard within the hold time, so probably walked away.
+ *      Always evictable, including one that had selected us as its relay: it cannot be
+ *      relying on us if it is not there.
+ *   2. An asymmetric entry weaker than the newcomer by more than the margin. We can hear
+ *      them and have no evidence they can hear us, which is worth less than a confirmed
+ *      link -- but it still needs the margin, or two unconfirmed neighbours a hair apart
+ *      displace each other for as long as both can be heard.
+ *   3. A symmetric entry weaker than the newcomer by more than the margin -- EXCEPT one
+ *      that has selected us as its multipoint relay. Dropping that silently breaks
+ *      somebody else's forwarding path, and they have no way to discover we did it.
+ *   4. Nothing. The newcomer genuinely is not better than what we hold, so refusing is
+ *      the correct answer and prevents two similar neighbours displacing each other for
+ *      as long as they can both be heard.
+ */
+static manet_neighbour_t *evict_candidate(manet_nb_table_t *t, uint8_t quality,
+                                          uint64_t slot)
+{
+    manet_neighbour_t *worst = NULL;
+    size_t i;
+
+    /* 1. expired -- take the stalest */
+    for (i = 0u; i < (size_t)t->count; i++) {
+        manet_neighbour_t *e = &t->entries[i];
+        if (slot > e->last_heard && (slot - e->last_heard) > MANET_NB_HOLD_SLOTS) {
+            if (worst == NULL || e->last_heard < worst->last_heard) {
+                worst = e;
+            }
+        }
+    }
+    if (worst != NULL) {
+        return worst;
+    }
+
+    /* Below here the newcomer is competing with something that is genuinely present, so
+     * it must clear the margin. The margin applies to BOTH remaining clauses: an
+     * asymmetric entry is worth less than a symmetric one, but two asymmetric entries a
+     * hair apart in quality will displace each other just as readily as two symmetric
+     * ones, and the first version of this function let them. */
+    if (quality <= (uint8_t)MANET_NB_EVICT_MARGIN) {
+        return NULL;
+    }
+    {
+        uint8_t threshold = (uint8_t)(quality - (uint8_t)MANET_NB_EVICT_MARGIN);
+
+        /* 2. asymmetric and clearly weaker -- take the weakest. Preferred over any
+         * symmetric entry: we can hear them and have no evidence they can hear us. */
+        for (i = 0u; i < (size_t)t->count; i++) {
+            manet_neighbour_t *e = &t->entries[i];
+            if (e->link != MANET_LINK_SYMMETRIC && e->quality < threshold) {
+                if (worst == NULL || e->quality < worst->quality) {
+                    worst = e;
+                }
+            }
+        }
+        if (worst != NULL) {
+            return worst;
+        }
+
+        /* 3. symmetric, not relying on us, and clearly weaker */
+        for (i = 0u; i < (size_t)t->count; i++) {
+            manet_neighbour_t *e = &t->entries[i];
+            if (!e->selected_us && e->quality < threshold) {
+                if (worst == NULL || e->quality < worst->quality) {
+                    worst = e;
+                }
+            }
+        }
+    }
+    return worst;   /* 4. NULL means keep what we have */
+}
+
+static manet_neighbour_t *find_or_add(manet_nb_table_t *t, manet_addr_t a,
+                                      uint8_t quality, uint64_t slot)
 {
     manet_neighbour_t *e = find(t, a);
     if (e != NULL) {
         return e;
     }
     if (t->count >= (uint8_t)MANET_MAX_NEIGHBOURS) {
-        return NULL;
+        e = evict_candidate(t, quality, slot);
+        if (e == NULL) {
+            return NULL;
+        }
+        /* Reuse the slot in place. The caller initialises the rest below. */
+        e->addr             = a;
+        e->link             = MANET_LINK_NONE;
+        e->quality          = 0u;
+        e->selected_us      = false;
+        e->last_heard       = 0u;
+        e->advertised_count = 0u;
+        return e;
     }
     e = &t->entries[t->count];
     t->count++;
@@ -65,7 +153,7 @@ manet_status_t manet_nb_heard(manet_nb_table_t *t, manet_addr_t from,
         return MANET_ERR_BAD_SOURCE;
     }
 
-    e = find_or_add(t, from);
+    e = find_or_add(t, from, quality, slot);
     if (e == NULL) {
         return MANET_ERR_BUFFER;
     }
@@ -94,7 +182,11 @@ manet_status_t manet_nb_advert(manet_nb_table_t *t, manet_addr_t from,
         return MANET_ERR_BAD_SOURCE;
     }
 
-    e = find_or_add(t, from);
+    /* Quality 0: an advert carries no link measurement of its own, so this can only
+     * reclaim an EXPIRED entry and can never displace a live neighbour on a number we
+     * would have had to invent. In practice manet_nb_heard has already run for the same
+     * frame and the entry exists; this is the defensive path. */
+    e = find_or_add(t, from, 0u, slot);
     if (e == NULL) {
         return MANET_ERR_BUFFER;
     }

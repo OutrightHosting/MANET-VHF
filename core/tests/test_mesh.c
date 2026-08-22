@@ -409,8 +409,122 @@ static void test_table_is_finite(void)
     CHECK_EQ(manet_nb_heard(&t, 0xFFu, 128u, 5u), MANET_ERR_BAD_SOURCE);
 }
 
+/*
+ * Neighbour table eviction. The table was first-come-first-served with no eviction: once
+ * full, a radio could never learn a new neighbour however useful, and however stale what
+ * it was already holding. Harmless in a flat cluster, but across 48 radios in twelve
+ * groups the table filled with whoever spoke first and worst-case delivery fell to 68.2%.
+ */
+static void fill_table(manet_nb_table_t *t, uint8_t quality, uint64_t slot)
+{
+    unsigned i;
+    for (i = 0u; i < (unsigned)MANET_MAX_NEIGHBOURS; i++) {
+        CHECK_EQ(manet_nb_heard(t, (manet_addr_t)(i + 1u), quality, slot), MANET_OK);
+    }
+    CHECK_EQ(manet_nb_count(t), (size_t)MANET_MAX_NEIGHBOURS);
+}
+
+static void test_full_table_refuses_a_worse_newcomer(void)
+{
+    /* Clause 4, and it matters as much as the others: if the newcomer is not better, the
+     * right answer is no. Otherwise two similar neighbours displace each other forever. */
+    manet_nb_table_t t;
+    manet_nb_init(&t, 200u);
+    fill_table(&t, 200u, 100u);
+
+    CHECK_EQ(manet_nb_heard(&t, 99u, 10u, 101u), MANET_ERR_BUFFER);
+    CHECK(manet_nb_get(&t, 99u) == NULL);
+    CHECK_EQ(manet_nb_count(&t), (size_t)MANET_MAX_NEIGHBOURS);
+}
+
+static void test_expired_entry_is_reclaimed_first(void)
+{
+    manet_nb_table_t t;
+    manet_nb_init(&t, 200u);
+    fill_table(&t, 200u, 100u);
+
+    /* Far enough past the hold time that entry 1 is certainly gone. Everything else is
+     * refreshed, so entry 1 is the only expired one. */
+    {
+        uint64_t later = 100u + MANET_NB_HOLD_SLOTS + 10u;
+        unsigned i;
+        for (i = 1u; i < (unsigned)MANET_MAX_NEIGHBOURS; i++) {
+            CHECK_EQ(manet_nb_heard(&t, (manet_addr_t)(i + 1u), 200u, later), MANET_OK);
+        }
+        /* A weak newcomer still gets in, because it is replacing something that is gone
+         * rather than competing with something that is present. */
+        CHECK_EQ(manet_nb_heard(&t, 99u, 5u, later), MANET_OK);
+        CHECK(manet_nb_get(&t, 99u) != NULL);
+        CHECK(manet_nb_get(&t, 1u) == NULL);
+        CHECK_EQ(manet_nb_count(&t), (size_t)MANET_MAX_NEIGHBOURS);
+    }
+}
+
+static void test_clearly_stronger_newcomer_displaces_the_weakest(void)
+{
+    manet_nb_table_t t;
+    unsigned i;
+    manet_nb_init(&t, 200u);
+    for (i = 0u; i < (unsigned)MANET_MAX_NEIGHBOURS; i++) {
+        CHECK_EQ(manet_nb_heard(&t, (manet_addr_t)(i + 1u),
+                                (uint8_t)(100u + i), 100u), MANET_OK);
+    }
+    /* Address 1 holds quality 100, the weakest. A newcomer well clear of the margin
+     * should take its place; the rest of the table is untouched. */
+    CHECK_EQ(manet_nb_heard(&t, 99u, 255u, 101u), MANET_OK);
+    CHECK(manet_nb_get(&t, 99u) != NULL);
+    CHECK(manet_nb_get(&t, 1u) == NULL);
+    CHECK(manet_nb_get(&t, 2u) != NULL);
+    CHECK_EQ(manet_nb_count(&t), (size_t)MANET_MAX_NEIGHBOURS);
+}
+
+static void test_margin_prevents_thrashing(void)
+{
+    /* Better, but not by the margin. Refused -- otherwise two radios a hair apart in
+     * quality evict each other for as long as both can be heard. */
+    manet_nb_table_t t;
+    unsigned i;
+    manet_nb_init(&t, 200u);
+    for (i = 0u; i < (unsigned)MANET_MAX_NEIGHBOURS; i++) {
+        CHECK_EQ(manet_nb_heard(&t, (manet_addr_t)(i + 1u), 100u, 100u), MANET_OK);
+    }
+    CHECK_EQ(manet_nb_heard(&t, 99u, (uint8_t)(100u + MANET_NB_EVICT_MARGIN - 1u), 101u),
+             MANET_ERR_BUFFER);
+    CHECK(manet_nb_get(&t, 99u) == NULL);
+}
+
+static void test_a_radio_relying_on_us_is_not_dropped(void)
+{
+    /* Clause 3's exception. Dropping a neighbour that selected us as its multipoint relay
+     * silently breaks its forwarding path, and it has no way to find out we did it. */
+    manet_nb_table_t t;
+    manet_advert_t   adv[1];
+    unsigned i;
+
+    manet_nb_init(&t, 200u);
+    for (i = 0u; i < (unsigned)MANET_MAX_NEIGHBOURS; i++) {
+        CHECK_EQ(manet_nb_heard(&t, (manet_addr_t)(i + 1u), 10u, 100u), MANET_OK);
+    }
+    /* Address 1 names us as its MPR: weakest in the table, and now load-bearing. */
+    adv[0].addr = 200u;
+    adv[0].code = MANET_ADV_MPR;
+    CHECK_EQ(manet_nb_advert(&t, 1u, adv, 1u, 100u), MANET_OK);
+
+    CHECK_EQ(manet_nb_heard(&t, 99u, 255u, 101u), MANET_OK);
+    CHECK(manet_nb_get(&t, 1u) != NULL);   /* protected */
+
+    /* But only while it is present. Once expired it is reclaimable like anything else. */
+    CHECK_EQ(manet_nb_heard(&t, 98u, 255u, 100u + MANET_NB_HOLD_SLOTS + 10u), MANET_OK);
+    CHECK(manet_nb_get(&t, 1u) == NULL);
+}
+
 void test_mesh_all(void)
 {
+    test_full_table_refuses_a_worse_newcomer();
+    test_expired_entry_is_reclaimed_first();
+    test_clearly_stronger_newcomer_displaces_the_weakest();
+    test_margin_prevents_thrashing();
+    test_a_radio_relying_on_us_is_not_dropped();
     test_cluster_relays_nothing();
     test_alone();
     test_chain();
