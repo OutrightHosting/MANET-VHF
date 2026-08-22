@@ -95,8 +95,40 @@ been filed rather than left to make the phase feel unfinished:
       displacing each other indefinitely. **84.7% is better, not good** — voice wants ~90%,
       and the residue at that density is likely the two-hop table (`MANET_MAX_TWO_HOP`),
       not this one.
-- [ ] **B-06 · Barrage reconverges 7.6× slower after a partition.** Three minutes of a safety
-      network not working is a product problem, not a metric. *Days.*
+- [x] **B-06 · Partition reconvergence under barrage.** ✅ **Investigated and improved
+      2026-08-22 — and the headline figure was measuring the wrong thing.**
+
+      **It reproduces, but only at a narrow interface.** Two halves reconnecting across a
+      broad front (110 cross-links) had barrage *3× faster* than the election. A chain
+      reconnecting through 14 links had it slower, which is the stress agent's topology.
+
+      **Mechanism, measured.** Not fewer beacons sent — scheduling is near-identical (93%
+      lost to NAMA either way, 8% fewer sent). It is beacons not *arriving*: barrage puts
+      42% more transmissions in the air, so of slots carrying a beacon,
+
+      | | election | barrage |
+      |---|---|---|
+      | decoded | 26.9% | 21.8% |
+      | receiver deaf, own PA keyed | 5.3% | **11.6%** |
+      | collided | 6.9% | **11.7%** |
+
+      **Fixed: triggered updates.** A radio whose symmetric neighbour set changes beacons at
+      the next slot it wins instead of waiting out the interval. Full reconvergence 70 s →
+      40 s.
+
+      **Rejected: excluding voice from the superframe control slot.** `manet_slot_is_control()`
+      has existed in the core since the superframe went in, exported and bound and never
+      called. Wiring it up cost **nine points of delivery on the 7-hop chain, 84.0% → 74.5%**
+      — the originator loses that payload and the relay chain breaks for anything landing
+      there — to buy ~24 s off a convergence voice does not wait for. Left wired and off
+      (`Simulation.CONTROL_SLOTS`); it becomes worth having if voice ever stops needing
+      every slot.
+
+      **And the severity was overstated by the metric.** "7.6× slower" measured neighbour
+      *table* convergence. Barrage floods, so it does not need converged tables to deliver:
+      measured at the same split, **the far side is receiving voice again immediately on
+      restore in both modes**, while the tables are still catching up. Tracked separately as
+      **M-05** — quote service recovery, not table recovery.
 - [ ] **B-08 · Possible regression in single-talker chain delivery.** An agent measured
       `100/61/46/40/36/35/35` where [OQ-0021](open-questions.md#oq-0021) records
       `100/100/99/99/98/97/97`. *Hours.*
@@ -110,7 +142,10 @@ been filed rather than left to make the phase feel unfinished:
       out of range — into metres against the horizon measured at run time, and
       `make geometry-check` is part of `make all` and rejects bare distance literals in
       scenarios. Non-distances stay named or carry a `geometry-exempt:` reason on the line.
-- [ ] **M-03 · Quote ranges as distributions, not points.** FFI give median, 10% and 90% at
+- [ ] **M-03 · Quote ranges as distributions, not points.**
+- [ ] **M-05 · Report recovery as time-to-voice, not time-to-tables.** B-06's alarming
+      number measured neighbour-table convergence; voice recovers immediately because
+      barrage floods rather than routing. The gate's Q5 reports a table figure. *Hours.* FFI give median, 10% and 90% at
       roughly 1:3. We quote single numbers. *Half a day.*
 
 ## Phase 0 — done

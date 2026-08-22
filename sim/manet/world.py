@@ -13,7 +13,10 @@ from .core import (
     BEACON, VOICE, PRIO_SIGNALLING, PRIO_VOICE, BROADCAST, CONFIG,
     Dedup, MprSet, NeighbourTable, Pdu, Scheduler,
 )
-from .core import voice_phase
+from .core import is_control_slot, voice_phase
+
+# One control slot per superframe. Derived here because the C config does not export it.
+SUPERFRAME_SLOTS = 32
 from .mobility import Static
 from .radio import Channel
 
@@ -54,6 +57,10 @@ class Node:
         self.last_voice_slot = None
         self.beacon_deferrals = 0
         self.last_beacon = None
+        # Set when this radio's symmetric neighbour set changes, so the next NAMA win
+        # beacons regardless of the interval. See _schedule_beacons.
+        self.topology_changed = False
+        self.known_symmetric = frozenset()
 
         # metrics
         self.heard_payloads = {}   # (src, seq) -> slot first decoded
@@ -139,6 +146,13 @@ class Simulation:
     # phase. One frame is too short — PTT leaves gaps between payloads — and permanent is
     # too long, since every radio would then protect a phase it never uses.
     TALKER_MEMORY = 16
+    # Keep voice out of the superframe's control slot. OFF: measured, it costs more than
+    # it buys. Excluding voice from 3.1% of slots took the 7-hop chain from 84.0% to 74.5%
+    # -- nine points, because the originator loses that payload AND the relay chain breaks
+    # for anything that would have landed there -- to buy roughly 24 s off a full table
+    # reconvergence that voice does not wait for anyway. Kept, wired and off, because the
+    # mechanism is sound and becomes worth having if voice ever stops needing every slot.
+    CONTROL_SLOTS = False
     DESIGNATED_RELAY = False
 
     def _schedule_beacons(self, slot):
@@ -162,11 +176,17 @@ class Simulation:
         interval = self.cfg.beacon_interval_slots
         for n in self.nodes:
             # Due for a beacon?
-            if n.last_beacon is not None and (slot - n.last_beacon) < interval:
+            if (n.last_beacon is not None and (slot - n.last_beacon) < interval
+                    and not n.topology_changed):
                 continue
             # Win this slot?
             if not n.nb.nama_wins(slot):
                 continue
+            # NOT biased toward control slots. Tried, and it made things much worse: at
+            # one control slot per superframe there are far fewer of them than there are
+            # radios, so waiting for one starved beaconing outright and pushed recovery
+            # from 40 s to 112 s. The control slot earns its keep by being a slot voice
+            # cannot occupy, not by being the only slot a beacon may use.
             # Winning the election says nobody within two hops will transmit in this slot.
             # It says nothing about whether THIS radio can afford to. Two local rules still
             # apply, and dropping them when NAMA went in cost eight points of delivery
@@ -196,6 +216,7 @@ class Simulation:
             if n.sched.originate(pdu, slot) == 0:
                 n.beacons_sent += 1
                 n.last_beacon = slot
+                n.topology_changed = False
 
     def voice_phase(self, node):
         """
@@ -229,6 +250,11 @@ class Simulation:
         n = self.nodes[self.talker]
         # One Codec2 payload per frame, beginning at this radio's own phase.
         if slot % self.cfg.slots_per_frame != self.voice_phase(n):
+            return
+        # Control slots belong to the topology, not to voice. manet_slot_is_control() has
+        # existed in the core since the superframe went in, exported through the bridge and
+        # bound in Python, and nothing ever called it.
+        if is_control_slot(slot):
             return
         # Voice TTL is bounded by the mouth-to-ear budget, not by the field width.
         pdu = Pdu(src=n.addr, prev=n.addr, dst=0xC0, type=VOICE,
@@ -329,6 +355,17 @@ class Simulation:
         # with the strongest link to the sender relays immediately; weaker candidates take
         # the following slots, and cancel themselves the moment they hear the frame go on
         # without them. If the best relay fails, the next one covers a slot later.
+        # TRIGGERED UPDATE. Waiting out the full beacon interval after the topology moves
+        # is what makes reconvergence slow, and barrage makes it slower still -- not by
+        # sending fewer beacons (measured: 8% fewer) but by putting 42% more transmissions
+        # in the air, so more receivers are deaf or collided when one goes out. A radio
+        # that has just gained or lost a symmetric neighbour has something worth saying
+        # and should say it at the next slot it wins, not in up to 5.28 s.
+        now_sym = frozenset(rx.nb.symmetric())
+        if now_sym != rx.known_symmetric:
+            rx.known_symmetric = now_sym
+            rx.topology_changed = True
+
         if rx.nb.should_relay(pdu.prev):
             # Stagger candidates by link quality so they do not all fire in the same
             # slot. Sized as a FRACTION of the frame, not a fixed slot count: it was
@@ -428,6 +465,13 @@ class Simulation:
                 # to say has no origination to protect, and yielding for it is expensive:
                 # on a sparse chain the single forward relay abstains and the frame dies
                 # there. Measured — the unconditional form failed the mobility criterion.
+                # Never relay into a control slot. Under barrage the flood fires in every
+                # slot unconditionally, which is why beacon reception fell from 26.9% to
+                # 21.8% -- receiver deafness doubled to 11.6% and collisions to 11.7%.
+                # NAMA keeps beacons clear of each other; nothing kept voice clear of them.
+                if self.CONTROL_SLOTS and is_control_slot(slot + 1):
+                    self.why["yielded control slot"] += 1
+                    return
                 talking = (rx.last_origination_attempt is not None
                            and (slot - rx.last_origination_attempt) < self.TALKER_MEMORY)
                 if talking and (slot + 1) % spf == self.phase_of_addr(rx.addr):
