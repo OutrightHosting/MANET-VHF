@@ -374,6 +374,10 @@ One item open: **M-06**.
 - [ ] **W-01 · Network time transfer** — [ADR-0012](decisions/0012-network-time-authoritative.md)
       layer 2. Turns the GPS dependency from hard to soft.
 - [ ] **W-02 · Cold start with no GPS anywhere** — ADR-0012 layer 1. The genuinely hard part.
+      Narrowed by [OQ-0035](open-questions.md#oq-0035): voice phase needs no clock and the
+      signalling reservation needs only the slot number *mod 8*, both derivable by listening.
+      **NAMA is the only consumer that needs the absolute count.** Settle whether its context
+      can be modular before assuming the wire format must carry a timestamp.
 - [ ] **W-03 · Network merge tie-break.** Two islands, two internally consistent clocks.
 - [ ] **W-05 · Late entry** — [OQ-0015](open-questions.md#oq-0015). Signalling half done.
 - [ ] **W-06 · Confirmed calls** — [OQ-0016](open-questions.md#oq-0016). Blocked on B-09.

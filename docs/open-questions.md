@@ -1835,3 +1835,50 @@ produces failures that look like protocol defects. [B-05](../docs/backlog.md) wa
 symptom, [B-13](../docs/backlog.md) the second, and the 40-radio regression blamed on
 [OQ-0033](#oq-0033) the third. `MANET_MAX_NEIGHBOURS` deserves re-deriving from the density
 the product actually has to survive rather than from the twelve-leader case it was sized for.
+
+## OQ-0035
+
+**NAMA is the only thing that needs the absolute slot number. Could it need less?**
+
+**Status:** open · **Phase:** 1 (wire format) · **Blocks:** W-02 cold start
+
+A radio joining a network with no GPS can hear burst edges, so it can align to slot
+*boundaries*. Nothing on the wire tells it the slot *number* — `manet_header_t` carries src,
+prev, dst, type, seq, ttl and prio, and no timestamp, epoch or slot field. Today the number is
+derived, not transmitted: `manet_slot_at()` is absolute time divided by the slot length, and
+every radio with a GPS fix computes the same value independently. That is ADR-0012 layer 4,
+the only layer built.
+
+What makes this worth an entry is that **most of the protocol does not need the absolute
+number at all**:
+
+| consumer | needs | derivable by listening? |
+|---|---|---|
+| `manet_voice_phase()` | the radio's own address; no time | yes — needs no clock |
+| `manet_slot_is_control()` | slot number **mod 8** (`MANET_SIGNAL_SLOT_PERIOD`) | yes — beacons land 1-in-8 |
+| `manet_nama_wins()` | the **absolute** number, hashed with the address | **no** |
+
+Voice phase is a pure function of address. The B-15 signalling reservation needs only the
+residue, which a newcomer could infer by observing where beacons fall. **NAMA is the single
+consumer forcing absolute agreement**, because `manet_nama_priority(node, context)` hashes the
+slot number itself: two radios disagreeing about the number compute different priorities, and
+the collision-free guarantee is void with no error indication — the same silent-failure shape
+as B-05, B-13 and B-15.
+
+**The question.** Could NAMA's context be modular — the slot number mod some N — reducing the
+cold-start requirement from "agree on an absolute count" to "agree on a phase", which is
+observable from the air?
+
+**Why it is not obviously yes.** `nama.h` argues the opposite direction: context diversity is
+what stops the same radio winning repeatedly, which is why slot ownership was moved up to the
+superframe rather than the four-slot voice frame. A modular context has a fixed number of
+distinct values and would repeat. The trade is unmeasured.
+
+**What would settle it.** Sweep NAMA with context taken mod N for N across a range, measuring
+election fairness, beacon collision rate and neighbour-table convergence against the current
+absolute-context behaviour. If a modular context holds up, layer 1 of ADR-0012 gets materially
+easier — a newcomer could reach full participation by listening rather than by being told the
+time. If it does not, then W-02 must carry the slot number explicitly, and that is a wire
+format change to price in [ADR-0012](decisions/0012-network-time-authoritative.md).
+
+Raised 2026-08-22 while tracing what the B-15 reservation depends on.
