@@ -101,7 +101,11 @@ def measure(name, group, pos, env, terrain=None, talker=0, slots=4000, note=""):
     xs_all = [q[0] for q in pos]; ys_all = [q[1] for q in pos]
     return {
         "name": name, "group": group, "note": note,
+        # Two different things, and calling either one "end to end" on its own misleads:
+        # reach_m is a RADIUS from the talker, span_m is the working network edge to edge.
         "reach_m": round(max((dist(i) for i in heard), default=0.0)),
+        "span_m": round(max((((pos[a][0]-pos[b][0])**2 + (pos[a][1]-pos[b][1])**2) ** 0.5
+                             for a in heard for b in heard), default=0.0)),
         "usable": len(heard), "usable_pct": round(len(heard) / len(pos) * 100),
         "extent_m": round(max(max(xs_all)-min(xs_all), max(ys_all)-min(ys_all))),
         "hop_m": round(usable_range_m(env, BUD)),

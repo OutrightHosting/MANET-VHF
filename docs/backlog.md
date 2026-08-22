@@ -224,6 +224,28 @@ been filed rather than left to make the phase feel unfinished:
       **200 radios went from 50.7% mean and 1/200 usable to 99.7% and 200/200**, and the
       usable hop depth went from 4 back to the full 7. [OQ-0033](open-questions.md#oq-0033).
 
+- [ ] **B-13 · Relaying is asymmetric either side of a centre talker.** Eight groups of six
+      in a line, talker in the middle. Delivery runs 93 / 94 / 99 / **100** / **100** / 49 /
+      47 / 46 — a cliff between group 4 and group 5, not a gradual decay. Cause is a
+      four-fold difference in relay rate between the two sides:
+
+      | | relays per radio |
+      |---|---|
+      | groups 0–3 (left of the talker) | 706–867 |
+      | groups 4–7 (right of the talker) | 192–212 |
+
+      Group 2 and group 4 are both one hop from the talker on identical topology, and group
+      4 is marginally *closer*. Group 4 receives 100% and forwards about a third of it.
+      Ruled out: per-radio voice phase — every radio within a group relays the same amount
+      regardless of its own phase, so it is a group-level effect. **Root cause not
+      established.** *Days.*
+- [ ] **B-14 · The 90% threshold reads as pass/fail and it is not.** "Four groups along a
+      valley" reports 8/16 in the conversation with a **worst node of 89.3%** — seven tenths
+      of a point under the line, presented as broken speech. The threshold is a hard line
+      through a soft boundary and the cards make it look categorical. **Done when:** the
+      atlas shows the distribution rather than a binary, or the flag names the actual worst
+      figure so 89.3% is not confused with 40%. *Hours.*
+
 ## Phase 0 — done
 
 - [x] **B-01 · Gate Q1 never went multi-hop.** Stretch derived from measured range: 15.5 km,
