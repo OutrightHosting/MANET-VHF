@@ -21,7 +21,7 @@ yet in any of them.
 | [OQ-0030](#oq-0030) | Are we optimising the wrong thing — hop count instead of range per hop? | **Now, it is a strategy question** | Direction of the whole MAC effort | **Open** |
 | [OQ-0031](#oq-0031) | GPS holdover and network time transfer | Phase 0 design, Phase 1 measure | Whether losing GPS loses the network | **Open** |
 | [OQ-0032](#oq-0032) | Dense cover spends the hop budget before the group ends | **Phase 0** | Coverage in woodland. 12/12 connected, 8/12 hearing | **Open** |
-| [OQ-0033](#oq-0033) | **Half of all payloads die at the talker's first hop** | **Phase 0** | Every scattered-mesh figure. Adding radios does not fix it | **Open, blocking** |
+| [OQ-0033](#oq-0033) | ~~Half of all payloads die at the talker's first hop~~ | — | — | **Closed** — simulator counted undetectable signals as interference |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1714,6 +1714,40 @@ buy 2.4 km of ground, where at our default they buy 30 km.
 is not the only geometry a group can be in.
 
 ## OQ-0033
+
+> ## Closed 2026-08-22. It was a simulator defect, not a protocol one.
+>
+> **`Channel.decode` summed interference over every other transmission in the network,
+> including ones far below the demodulator's floor.** In a twelve-radio chain there are one
+> or two such transmissions and it changes nothing. In a hundred-radio mesh there is a
+> **median of eighteen per slot**, and they contributed a **median of 100% of the
+> interference power** — so a receiver was being jammed entirely by signals it could not
+> hear.
+>
+> Sub-floor signals are not ignored on principle. They are already inside the sensitivity
+> figure, which is defined against the receiver's own noise; adding them again counts the
+> same noise twice.
+>
+> | Same 38 km of ground | before | after |
+> |---|---|---|
+> | 100 radios | 46.7% | **92.9%** |
+> | 200 radios | 50.7%, 1/200 usable | **99.7%, 200/200 usable** |
+>
+> **Adding radios now improves the network monotonically**, which is what a mesh is for and
+> what the plateau at 50.7% was contradicting.
+>
+> **It also moves the headline hop figure, twice corrected now.** At hop 7 the chain
+> delivers 90.5% where it delivered 84.0%, so the usable depth goes from 4 hops back to
+> **the full 7** — the earlier correction was itself an artefact of this bug. Per-hop:
+> 98.1 / 96.7 / 95.3 / 94.0 / 92.1 / 91.5 / 90.5.
+>
+> Spatial reuse also improved: collisions 39 → 8, end-to-end 92% → 94%. The hill and the
+> gate are unchanged, having too few radios for the bug to bite.
+>
+> **Found because the user pushed back on a mesh that got worse as radios were added.** Three
+> hypotheses were proposed and disproved first — density, spatial reuse at the four-slot
+> distance, and hop-4 relays reaching the talker's neighbours.
+
 ### Half of all payloads die at the talker's first hop, and adding radios does not fix it
 
 Raised by the user, from the observation that a mesh which gets *worse* as radios are added

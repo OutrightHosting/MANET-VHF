@@ -215,14 +215,14 @@ been filed rather than left to make the phase feel unfinished:
       the two diverge at scale, which is what made B-06 read as "7.6× slower" when the
       service had already recovered.
 
-- [ ] **B-12 · Half of all payloads die at the talker's first hop.**
-      [OQ-0033](open-questions.md#oq-0033). Hops 2–7 run at 96–99%; hop 1 runs at **49%**,
-      and it is collision rather than range or deafness — wanted signal arriving at a
-      **median −0.3 dB** against the interferer where capture needs 10 dB. Density does not
-      fix it: 40 → 200 radios on the same ground plateaus near 50%. Three hypotheses have
-      been disproved (spatial reuse, hop-4 relays, table overflow); the next candidate is
-      the receiver locking onto a louder older copy. **Blocking — every scattered-mesh
-      figure depends on it.** *Days.*
+- [x] **B-12 · Half of all payloads died at the talker's first hop.** ✅ **Fixed 2026-08-22 —
+      a simulator defect, not a protocol one.** `Channel.decode` summed interference over
+      every transmission in the network including ones far below the demodulator's floor:
+      a median of **18 per slot** at 100 radios, contributing a median of **100%** of the
+      interference power. A receiver was being jammed entirely by signals it could not hear.
+      Chains never showed it because they have one or two transmitters.
+      **200 radios went from 50.7% mean and 1/200 usable to 99.7% and 200/200**, and the
+      usable hop depth went from 4 back to the full 7. [OQ-0033](open-questions.md#oq-0033).
 
 ## Phase 0 — done
 
