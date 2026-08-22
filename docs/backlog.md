@@ -208,7 +208,7 @@ been filed rather than left to make the phase feel unfinished:
 - [ ] **M-06 · Apply shadowing per link in the channel, not just in reporting.** M-03 gives
       the parameter (σ = 7.0 dB); the channel is still deterministic, so every link at a
       given distance behaves identically and marginal links never flicker. Would need a seed
-      to stay reproducible, and would change every delivery figure. *Days, Phase 1+.*
+      to stay reproducible, and would change every delivery figure. *Phase 1+.*
 - [x] **M-07 · Gate the dense-cover case.** ✅ **Done 2026-08-22.** Gate **Q7** — twelve
       leaders in cover with a 350 m horizon, sweeping the spread and reporting where the
       group splits. Currently: holds together to **1.5 km**, splits at 2 km with 12/12
@@ -288,7 +288,7 @@ been filed rather than left to make the phase feel unfinished:
       fourfold does buy real delivery (see B-16), but it *widens* the density gap rather
       than closing it (0.4 vs 2.5 pts per hop), so it is a separate cost, not this one.
 
-      Root cause not established. *Days.*
+      Root cause not established.
 
 - [ ] **B-16 · Beacons cost delivery even when the mesh is otherwise ideal.** Seven radios
       in a line, nothing else contending, lose 1.2 points per hop. At four times the beacon
@@ -301,7 +301,7 @@ been filed rather than left to make the phase feel unfinished:
       **zero**, because neighbour entries expire before the next beacon arrives and every
       radio treats every other as unknown. The floor is the neighbour hold time, and the two
       have to move together. Triggered updates (already implemented) should carry more of
-      the load so the periodic rate can drop. *Hours.*
+      the load so the periodic rate can drop.
 
 ## Phase 0 — done
 
@@ -402,7 +402,7 @@ been filed rather than left to make the phase feel unfinished:
       of a point under the line, presented as broken speech. The threshold is a hard line
       through a soft boundary and the cards make it look categorical. **Done when:** the
       atlas shows the distribution rather than a binary, or the flag names the actual worst
-      figure so 89.3% is not confused with 40%. *Hours.*
+      figure so 89.3% is not confused with 40%.
 - [ ] **H-01 · Rewrite the OQ-0012 entry** — stale in both directions per the Phase 0 audit.
 - [ ] **H-02 · Correct OQ-0004's findings** and re-derive the beacon interval for the 160 ms
       frame. 33 frames was chosen against a 60 ms frame and silently changed meaning.
