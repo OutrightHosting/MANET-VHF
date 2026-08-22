@@ -1508,6 +1508,56 @@ Record the bit-error position histogram alongside PER at every point: a histogra
 the programmed Δf is direct evidence of beating and distinguishes the mechanism from a plain
 sensitivity loss.
 
+### Is the cliff even reachable? Yes, and in the worst possible way — measured 2026-08-22
+
+Combining only matters where two copies arrive close in power; where one is much stronger,
+capture carries the frame and beating is irrelevant. So before spending anything on a bench,
+the free question is whether near-equal-power copies actually occur in our geometry.
+
+**They dominate it.** Across simulated deployments, of every reception carrying two or more
+audible copies of one payload:
+
+| scenario | ≥2 copies | within 1 dB | within 3 dB | median delta |
+|---|---|---|---|---|
+| seven groups of six | 37,656 | **98.4%** | 100% | **0.1 dB** |
+| eight groups over a ridge | 17,922 | 69.0% | 96.6% | 0.1 dB |
+| 100 radios over 38 km | 77,211 | 11.2% | 40.0% | 3.8 dB |
+| 40 spread over ground | 618 | 0.0% | 0.0% | 3.1 dB |
+| twelve in a line | **0** | — | — | — |
+
+**The mechanism is geometry and it is not escapable.** Two radios standing *d* apart, both
+relaying to a receiver *R* away, arrive with a power difference that collapses as R grows:
+
+| group spread | receiver at 729 m | at 2429 m | at 4858 m |
+|---|---|---|---|
+| 50 m | 1.03 dB | 0.27 dB | 0.13 dB |
+| 120 m | 2.63 dB | 0.66 dB | 0.33 dB |
+| 240 m | 5.99 dB | 1.36 dB | 0.66 dB |
+| 500 m | 18.64 dB | 3.00 dB | 1.42 dB |
+
+A huddle relaying to anyone beyond about a kilometre arrives within a fraction of a decibel.
+**There is no power separation for capture to work with**, so in exactly the case the product
+is built for — a group standing together, relaying onward — the outcome rests entirely on
+whether the copies combine or beat. Capture is not a fallback there. It is not available.
+
+**Three consequences.**
+
+1. **OQ-0028 is not a footnote, it is the centre of the project.** The bench test is worth
+   what it costs, because the condition it probes is the normal one rather than an edge case.
+2. **A line is the one shape with no exposure at all** — zero co-slot copies in 8,026
+   receptions, because one radio per position means relays are sequential. The formation that
+   is most fragile against terrain ([geometry.py](../sim/manet/geometry.py)) is the only one
+   immune to this. They are opposite failure modes and no single formation avoids both.
+3. **It compounds with T-01's finding.** Near-zero power delta is the condition for a deep
+   null; a disciplined LO holds the phase still so the null does not move. Both point the same
+   way: deliberate dither, or an interleaver, rather than tighter hardware.
+
+**A caveat on the first table.** The atlas lays radios out on an exact lattice, which makes
+symmetric pairs match to the metre. Adding ±25 m of jitter — a couple of paces — moved the
+seven-groups figure from 100.0% to 98.4% and the ridge case from 96.6% to 69.0% within 1 dB,
+and left the medians at 0.1 dB. So the lattice flatters it slightly and the effect is
+overwhelmingly physical. Query: `scratchpad/powerdelta.py`.
+
 ### How much has to be true — measured, not assumed
 
 The model asserts identical copies *never* jam. Reality will be weaker: capture still needs

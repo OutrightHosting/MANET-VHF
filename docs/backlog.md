@@ -389,7 +389,22 @@ One item open: **M-06**.
 
 ## Decisions required before ordering
 
-- [!] **D-01 · Bench part: CC1120, or fabricate CC1200 at VHF?**
+- [!] **D-01 · Bench part: CC1120, or fabricate CC1200 at VHF?** **All three preconditions are
+      now done and they all say buy it.** `prev` is off the voice header (B-17); T-01's sweep
+      is rewritten onto the 0–30 Hz danger zone; and the power-delta query
+      ([OQ-0028](open-questions.md#oq-0028)) shows near-equal-power concurrent copies are not
+      an edge case but the normal condition — **98.4% of multi-copy receptions within 1 dB** in
+      a grouped deployment, because a huddle relaying to anyone beyond a kilometre arrives
+      within a fraction of a decibel. Capture cannot carry it. The bench buys a real answer.
+
+      Recommendation from the research: **Route B for the bench** — 2× CC1120EMK-169 + 4×
+      SMARTRFTRXEBK, £790 ex VAT, in stock — while **explicitly refusing** ADR-0005's second
+      clause about re-writing the ADR around the CC1120. That rested on a blocking figure that
+      does not survive the datasheets (59 dB, not "slightly lower"; 5 dB apart at an offset our
+      channel plan does not use; identical at 434 MHz). On the only clean functional
+      differences the **CC1200** wins — hardware AES, and hardware FEC with an interleaver
+      where the CC1120 has no FEC bit at all, which is the difference between one PER curve and
+      two.
       [ADR-0005 is re-opened](decisions/0005-cc1200-stm32-bench-platform.md) — no CC1200 EVM
       exists in our band. Recommendation is CC1120EMK-169 on blocking performance, which
       matters more in a near-far mesh than anywhere else. Complicated by CPM — see
