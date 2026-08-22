@@ -26,7 +26,7 @@ Anything that collapses that into "in range / out of range" cannot answer the qu
 import math
 from dataclasses import dataclass
 
-from .terrain import Flat, diffraction_db
+from .terrain import ANTENNA_HEIGHT_M, Flat, diffraction_db
 
 C_LIGHT = 299792458.0
 
@@ -329,12 +329,66 @@ class Channel:
         return self.budget.shadowing_db * (
             math.sqrt(f) * shared + math.sqrt(1.0 - f) * local)
 
+    # Effective earth radius. Refraction bends VHF slightly downward, so the radio horizon
+    # is further than the optical one -- the standard 4/3 approximation.
+    EARTH_K = 4.0 / 3.0
+    EARTH_RADIUS_M = 6371000.0
+
+    def _antenna_heights(self, a, b):
+        """Height of each antenna above sea level: ground under it, plus the person."""
+        return (self.terrain.height(a[0], a[1]) + ANTENNA_HEIGHT_M,
+                self.terrain.height(b[0], b[1]) + ANTENNA_HEIGHT_M)
+
+    def height_gain_db(self, a, b):
+        """
+        What standing somewhere high is worth.
+
+        Egli's median-loss model carries the antenna-height dependence explicitly, as
+        -20 log10(h_tx * h_rx). Environment.path_loss_db does not: it is a log-distance fit
+        with a vegetation term, calibrated for two radios on foot, and it gives every radio
+        the same range whatever it is standing on. That is wrong in the one situation the
+        product exists for. terrain.py's own docstring describes it exactly -- "Both can hear
+        anyone standing on the ridge between them. That is a repeater on a hill, except
+        nobody sited it" -- and until now the model could represent the hill only as an
+        obstruction, never as a vantage point.
+
+        So this applies EGLI'S HEIGHT TERM AS A DELTA from the 1.5 m both-on-foot case the
+        distance model is already calibrated for. Two radios on the flat get exactly 0 dB and
+        nothing changes; a radio on an 80 m ridge gets about 35 dB, which in a 40 log10(d)
+        model is a little over seven times the range.
+
+        Height is worth far more than power here. The same 35 dB from the PA would be about
+        3 kW.
+        """
+        ha, hb = self._antenna_heights(a, b)
+        ref = ANTENNA_HEIGHT_M * ANTENNA_HEIGHT_M
+        return 20.0 * math.log10((ha * hb) / ref)
+
+    def los_limit_m(self, a, b):
+        """
+        Distance at which the earth's curvature puts the far radio below the horizon.
+
+        Egli has no line-of-sight cap and will happily report 215 km for two radios on the
+        same ridge, which is nonsense -- they are 74 km apart over the bulge by then. The
+        gain above is only real out to here.
+        """
+        ha, hb = self._antenna_heights(a, b)
+        k = 2.0 * self.EARTH_K * self.EARTH_RADIUS_M
+        return math.sqrt(k * ha) + math.sqrt(k * hb)
+
     def rx_dbm_between(self, a, b):
-        """Received power between two points, including terrain obstruction."""
+        """Received power between two points, including terrain and antenna height."""
         d = math.hypot(a[0] - b[0], a[1] - b[1])
         p = self.rx_dbm(d)
         if not isinstance(self.terrain, Flat):
             p -= diffraction_db(a, b, self.terrain, self.budget.freq_hz)
+            p += self.height_gain_db(a, b)
+            if d > self.los_limit_m(a, b):
+                # Beyond the horizon the height gain is not available at all. Charged as a
+                # hard floor rather than modelled -- over-the-horizon diffraction is a real
+                # mechanism and this is not it, but nothing in this project should be
+                # relying on a path the far radio cannot see.
+                return -999.0
         if self.SHADOWING:
             p -= self._shadow_db(a, b)
         return p

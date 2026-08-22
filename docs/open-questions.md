@@ -1923,3 +1923,39 @@ the sensitivity is one-sided: a higher shared fraction makes groups look more fr
 
 Raised 2026-08-22 after a scale scenario collapsed from 32/32 radios to 4/32 under the
 all-shared model, and the cause turned out to be the grid being coarser than a group.
+
+## OQ-0037
+
+**A radio above the treeline still pays full vegetation loss.**
+
+**Status:** open · **Phase:** 1 (bench) · **Relates to:** OQ-0023, ADR-0010
+
+Antenna height now enters the path loss (Egli's `-20 log10(h_tx · h_rx)`, applied as a delta
+from the 1.5 m both-on-foot case the distance model is calibrated for), bounded by the 4/3-earth
+line-of-sight horizon. A radio on an 80 m ridge gains about 35 dB, roughly seven times the range,
+and in the atlas's eight-groups-over-a-ridge scenario the one radio standing on the crest goes
+from hearing 11 of 31 others to hearing **all 31**.
+
+**What is still wrong.** `Environment.path_loss_db` charges the ITU-R P.833 vegetation term over
+the whole path regardless of height. The fit assumes trees of mean height 16 m
+(sim/manet/radio.py:90). A radio 80 m up is well clear of the canopy and its path to a distant
+valley spends most of its length above the trees, so charging it the full ~11 dB is wrong.
+
+**Which way the error runs.** Conservative. Elevation is worth *more* than the model now credits,
+not less, so nothing quoted is over-optimistic because of this. That is why it is recorded rather
+than fixed in the same change — the safe direction, and it needs a real treatment rather than a
+guess.
+
+**What a real treatment looks like.** Vegetation loss in proportion to the fraction of the path
+that actually passes through canopy, which needs the ground profile (already sampled for
+diffraction in `terrain.profile`) and a canopy height per environment. Not difficult; it just
+should not be invented alongside the height term without something to check it against.
+
+**Also unmodelled, and NOT conservative:** paths beyond the line-of-sight horizon are charged as
+a hard failure rather than as over-the-horizon diffraction, which is a real mechanism that
+carries real signal. On foot the horizon is 10.1 km against a 4.4 km woodland range, so it never
+binds; it only matters once a radio is high enough for the gain to reach that far. Two radios on
+an 80 m ridge would be cut off at 42 km where something would in fact get through.
+
+Raised 2026-08-22, while adding the height term — noticed because the model had a hill it could
+only ever treat as an obstruction.
