@@ -26,9 +26,24 @@ DEPS     := $(CORE_OBJ:.o=.d) $(TEST_OBJ:.o=.d) $(ARM_OBJ:.o=.d)
 
 ARM_CC   := arm-none-eabi-gcc
 
-.PHONY: FORCE all test test-3slot budget freestanding arm arm-build arm-check arm-size trace sim sim-lib reuse clean
+.PHONY: geometry-check FORCE all test test-3slot budget freestanding arm arm-build arm-check arm-size trace sim sim-lib reuse clean
 
-all: test
+all: test geometry-check
+
+# ------------------------------------------------------- geometry-check --
+
+# Reject bare distance literals in simulation scenarios. Four scenarios shipped with
+# distances pinned in metres against a radio horizon that later moved, and every one of
+# them kept reporting PASS while testing nothing:
+#
+#   gate Q1   3000 m stretch inside a 4416 m horizon -> never left one hop
+#   gate Q5   4000 m separation, jitter to 3700 m    -> never partitioned
+#   hill.py   groups 1200 m apart, crest at 1500 m   -> valleys could not reach the hill
+#   many_groups  371 m spacing in a 4416 m horizon   -> a cluster wearing a chain costume
+#
+# Part of `all`, so it cannot be skipped. See sim/manet/geometry.py.
+geometry-check:
+	@python3 tools/check_geometry.py
 
 # ---------------------------------------------------------------------- tests --
 

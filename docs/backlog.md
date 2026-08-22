@@ -82,6 +82,14 @@ been filed rather than left to make the phase feel unfinished:
       `100/100/99/99/98/97/97`. *Hours.*
 - [ ] **B-10 · `multi_talker` is never called.** The harness function that would have caught
       B-04b exists and nothing invokes it. *Hours.*
+- [x] **B-11 · Hardcoded distances, fixed structurally.** ✅ **Done 2026-08-22.** Four
+      scenarios had pinned distances in metres against a radio horizon that later moved, and
+      every one kept reporting PASS while testing nothing — gate Q1, gate Q5, `hill.py`, and
+      `many_groups` (371 m spacing inside a 4416 m horizon: a cluster wearing a chain
+      costume). Now: `sim/manet/geometry.py` converts *intent* — one hop, three hops, just
+      out of range — into metres against the horizon measured at run time, and
+      `make geometry-check` is part of `make all` and rejects bare distance literals in
+      scenarios. Non-distances stay named or carry a `geometry-exempt:` reason on the line.
 - [ ] **M-03 · Quote ranges as distributions, not points.** FFI give median, 10% and 90% at
       roughly 1:3. We quote single numbers. *Half a day.*
 

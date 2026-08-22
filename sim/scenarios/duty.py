@@ -12,6 +12,7 @@ import collections, sys
 from ..manet.core import CONFIG
 from ..manet.mobility import Static
 from ..manet.radio import ENVIRONMENTS, LinkBudget
+from ..manet.geometry import hop_span_m, within_one_hop_m
 from ..manet.terrain import Ridge
 from ..manet.world import Simulation
 
@@ -21,15 +22,17 @@ burst_frac = CONFIG.burst_us / CONFIG.slot_us
 PA_W = 5.0 / 0.45           # 5 W RF out of a ~45%-efficient VHF module
 
 def build(pos, slots=1500):
-    ridge = Ridge(crest_x=1500.0, height_m=80.0, width_m=400.0)
+    ridge = Ridge(crest_x=within_one_hop_m(WOOD, BUD), height_m=80.0, width_m=400.0)
     sim = Simulation(Static(pos), WOOD, BUDGET, talker=0, terrain=ridge)
     settle = CONFIG.beacon_interval_slots * 4
     sim.run(settle); sim.run(slots - settle, voice_from=settle)
     return sim
 
-def three(per_group=4, spread=250.0):
+def three(per_group=4, spread=None):
+    spread = spread if spread is not None else within_one_hop_m(WOOD, BUD) * 0.1
     pos = []
-    for c in (300.0, 1500.0, 2700.0):
+    G = within_one_hop_m(WOOD, BUD)
+    for c in (0.0, G, 2 * G):
         for i in range(per_group):
             pos.append((c + (i - per_group / 2) * spread / per_group, (i % 2) * 40.0))
     return pos
@@ -37,7 +40,7 @@ def three(per_group=4, spread=250.0):
 def many(groups=8, per_group=4):
     pos = []
     for g in range(groups):
-        cx = 200.0 + g * (2600.0 / max(groups - 1, 1))
+        cx = g * (hop_span_m(WOOD, BUD, 3) / max(groups - 1, 1))
         for i in range(per_group):
             pos.append((cx + (i - per_group / 2) * 60.0, (i % 3) * 50.0))
     return pos

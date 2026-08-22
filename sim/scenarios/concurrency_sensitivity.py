@@ -9,6 +9,7 @@ import math, sys; sys.path.insert(0,'.')
 from sim.manet.core import CONFIG
 from sim.manet.mobility import Static
 from sim.manet.radio import ENVIRONMENTS, LinkBudget, Channel, _dbm_to_mw, _payload_key
+from sim.manet.geometry import hop_span_m, within_one_hop_m
 from sim.manet.terrain import Ridge
 from sim.manet.world import Simulation
 
@@ -36,9 +37,10 @@ def patched_decode(margin_db):
         return (best_idx, best_payload, best_dbm)
     return decode
 
-ridge = Ridge(crest_x=1500.0, height_m=80.0, width_m=400.0)
+ridge = Ridge(crest_x=within_one_hop_m(WOOD, BUD), height_m=80.0, width_m=400.0)
 pos = []
-for c in (300.0, 1500.0, 2700.0):
+G = within_one_hop_m(WOOD, BUD)
+for c in (0.0, G, 2 * G):
     for i in range(4): pos.append((c+(i-2)*62.5, (i%2)*40.0))
 orig = Channel.decode
 print("identical copies must be this far apart in dB before capture separates them:\n")

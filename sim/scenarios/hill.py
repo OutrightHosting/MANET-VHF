@@ -14,7 +14,8 @@ A ridge does it easily.
 
 from ..manet.core import CONFIG
 from ..manet.mobility import Static
-from ..manet.radio import ENVIRONMENTS, LinkBudget, usable_range_m
+from ..manet.geometry import hop_span_m, horizon_m, within_one_hop_m
+from ..manet.radio import ENVIRONMENTS, LinkBudget
 from ..manet.terrain import Ridge
 from ..manet.world import Simulation
 
@@ -26,8 +27,8 @@ BUDGET = LinkBudget()
 # the horizon was 4416 m. At a shorter horizon -- and M-01 shows the plausible range spans
 # 1.9 to 4.4 km -- the valleys cannot reach the hilltop and the scenario silently stops
 # testing relaying at all. Derived from measured range instead, so it moves with the model.
-RANGE_M = usable_range_m(WOOD, BUDGET)
-GROUP_SPACING = 0.55 * RANGE_M     # valley to hilltop: inside one hop, comfortably
+RANGE_M = horizon_m(WOOD, BUDGET)
+GROUP_SPACING = within_one_hop_m(WOOD, BUDGET)   # valley to hilltop, dependably
 CREST_X = GROUP_SPACING * 1.0      # the ridge sits on the middle group
 
 
@@ -69,10 +70,20 @@ def many_groups(groups=8, per_group=4, slots=6000):
     The generalisation: scatter groups across a valley system and let whoever is high up
     do the relaying. Nobody is configured as a relay and nobody needs to be.
     """
-    ridge = Ridge(crest_x=1500.0, height_m=80.0, width_m=400.0)
+    # Strung out over a span the topology can actually cross, derived rather than pinned.
+    #
+    # The crest sits ON a group, not between two. The whole scenario is "whoever is high up
+    # relays", so if the ridge falls in a gap then nobody is standing on it and the network
+    # simply severs -- 16/32 reachable, which is what the first version of this conversion
+    # produced. Note the previous hardcoded version had the opposite failure: 371 m spacing
+    # inside a 4416 m horizon meant every group heard every other directly, so it was a
+    # cluster wearing a chain costume and the ridge was decorative.
+    span = hop_span_m(WOOD, BUDGET, 3)
+    step = span / max(groups - 1, 1)
+    ridge = Ridge(crest_x=(groups // 2) * step, height_m=80.0, width_m=400.0)
     pos = []
     for g in range(groups):
-        cx = 200.0 + g * (2600.0 / max(groups - 1, 1))
+        cx = g * step
         for i in range(per_group):
             pos.append((cx + (i - per_group / 2) * 60.0, (i % 3) * 50.0))
 
