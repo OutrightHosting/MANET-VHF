@@ -259,14 +259,18 @@ def build():
         out.append(measure(f"{n} radios over {Rw*mult/1000:.0f} km, talker centre",
                            "At the ceiling", pts, WOOD, talker=centre_of(pts), slots=2500,
                            note="Spread until the hop budget is the thing that stops it."))
+    # SEVEN groups, not eight. An even number has no middle group: the talker lands in
+    # group 3 of 0-7 with three groups behind it and four in front, so one side is a hop
+    # deeper and the pair reads as an asymmetry in the protocol when it is an asymmetry in
+    # the arrangement. Seven gives a true centre and makes the two cards comparable.
     big = [(g * one * 1.05 + SHOULDER * (i % 3), SHOULDER * (i // 3))
-           for g in range(8) for i in range(6)]
-    out.append(measure("Eight groups of six, end to end", "At the ceiling",
+           for g in range(7) for i in range(6)]
+    out.append(measure("Seven groups of six, end to end", "At the ceiling",
                        big, WOOD, talker=0, slots=3000,
-                       note="48 radios in eight clusters. Spoken from the far end."))
-    out.append(measure("Eight groups of six, spoken from the middle", "At the ceiling",
+                       note="42 radios in seven clusters. Spoken from the far end."))
+    out.append(measure("Seven groups of six, spoken from the middle", "At the ceiling",
                        big, WOOD, talker=centre_of(big), slots=3000,
-                       note="The same 48 radios. Half the hops in each direction."))
+                       note="The same 42 radios, three groups either side. Half the hops."))
 
     # ---- scale --------------------------------------------------------------
     for n in (32, 100):
