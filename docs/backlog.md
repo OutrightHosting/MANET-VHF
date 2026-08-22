@@ -283,7 +283,25 @@ been filed rather than left to make the phase feel unfinished:
       *exactly zero*; all six radios in a group get identical delivery), and **coverage
       suppression** (disabled at the class level, results unchanged to the decimal).
 
+      Also ruled out: **beacon slot overhead**. It looked strong — beacons take 5% of slots
+      at 7 radios and 32% at 42, scaling exactly with radio count. Widening the interval
+      fourfold does buy real delivery (see B-16), but it *widens* the density gap rather
+      than closing it (0.4 vs 2.5 pts per hop), so it is a separate cost, not this one.
+
       Root cause not established. *Days.*
+
+- [ ] **B-16 · Beacons cost delivery even when the mesh is otherwise ideal.** Seven radios
+      in a line, nothing else contending, lose 1.2 points per hop. At four times the beacon
+      interval that falls to **0.4 points per hop** — end to end, 93% becomes 98%.
+
+      Beaconing occupies 5% of slots at 7 radios and 32% at 42. The interval was chosen for
+      a twelve-radio net and never revisited against voice.
+
+      Not simply a matter of turning it down: at sixteen times the interval delivery goes to
+      **zero**, because neighbour entries expire before the next beacon arrives and every
+      radio treats every other as unknown. The floor is the neighbour hold time, and the two
+      have to move together. Triggered updates (already implemented) should carry more of
+      the load so the periodic rate can drop. *Hours.*
 
 ## Phase 0 — done
 
