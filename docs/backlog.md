@@ -397,7 +397,10 @@ One item open: **M-06**.
 - [!] **D-02 · Strategy: hop count, or range per hop?**
       [OQ-0030](open-questions.md#oq-0030). FFI use the lowest data rate to cover the most
       ground per hop and need 1–2 relays for 50 km. Changes what Phase 1 measures.
-- [!] **D-03 · Oscillator: TCXO or MEMS OCXO?** £3 buys 55 min of blackout holdover, £15 buys
+- [!] **D-03 · Oscillator: TCXO or MEMS OCXO?** **Cannot be decided on holdover alone — see
+      T-01.** Both options sit inside the 0–30 Hz window where a beat null spans the whole
+      burst, so neither escapes the concurrent-transmission hazard and buying tighter makes it
+      worse, not better. £3 buys 55 min of blackout holdover, £15 buys
       9.2 h ([OQ-0031](open-questions.md#oq-0031)). Also serves
       [OQ-0024](open-questions.md#oq-0024) and [OQ-0028](open-questions.md#oq-0028). Same
       board as D-01, so decide together.
@@ -414,6 +417,39 @@ One item open: **M-06**.
       seven hops or three, and body-worn-only removed the fallback.** Sweep the *number* of
       co-transmitters too — up to 11 identical copies were measured in one slot, and the risk
       scales with the crowd, not with two.
+
+      **REWRITTEN 2026-08-22. The sweep as originally specified would have missed the
+      failure.** It said 0 to ±1 kHz, linear, and judged success on PER staying flat to
+      ±200 Hz. The danger zone is **0–30 Hz** and a linear sweep to 1 kHz steps over it.
+
+      Beat frequency equals carrier frequency offset exactly, and the burst is 36.68 ms. The
+      beat period therefore equals or exceeds the whole burst when **|Δf| ≤ 27.3 Hz — 0.176
+      ppm at 155 MHz.** Below that a null does not flicker past, it sits on the frame:
+
+      | reference | offset between two radios | beats per burst |
+      |---|---|---|
+      | GPS-disciplined, 1 ppb | **0.15 Hz** | one null, frozen |
+      | good TCXO, 0.1 ppm | **15.5 Hz** | under one |
+      | plain crystal, 2 ppm | 310 Hz | ~11, averages out |
+
+      **The better the oscillator, the deeper into the hazard.** Glossy and BlueFlood get
+      intra-packet time diversity free from sloppy references; disciplining the LO removes it,
+      and TrellisWare dither on purpose. So the sweep must be **logarithmic and concentrated
+      low: 0, 3, 6, 12, 25, 50, 100, 250, 500, 1000 Hz.**
+
+      Add two measurements the original did not have:
+      - **bit-error position histogram across the burst**, with CRC filtering disabled. A
+        histogram periodic at the programmed Δf is direct observation of beating, and says the
+        remedy is an interleaver rather than a better reference. Check first whether the packet
+        engine will hand up CRC-failed payloads; if not, this needs the I/Q tap.
+      - **error rate per symbol level.** The published treatments model BFSK explicitly "for
+        simplicity". With 4-GFSK the inner symbols sit one deviation step apart rather than
+        two, so a null should corrupt inner before outer. No published treatment of concurrent
+        transmission on 4-level FSK was found — a genuine gap, specific to our modulation, and
+        free to measure here.
+
+      **This changes [D-03](#decisions-required-before-ordering).** Both oscillator options sit
+      inside the danger zone, so that decision cannot be made on holdover alone.
 - [ ] **T-02 · OQ-0001 achievable bit rate**, and CPM against 4FSK
       ([nbwf-lessons.md §3](nbwf-lessons.md)).
 - [ ] **T-03 · OQ-0024 preamble tests A–E** ([preamble-budget.md](preamble-budget.md)).

@@ -1462,11 +1462,29 @@ payloads collide exactly as before.
 symbol is 104 µs, and a few kilometres of path difference is ~10 µs, so timing is comfortable
 with GPS-disciplined slots — the *timing* half is not the risk.
 
-**Carrier frequency offset is the risk.** Two transmitters a few hundred hertz apart produce
-a beat, and during destructive periods the composite fades. With 16% FEC there is not much to
-ride it out with. This is the same dependency as [OQ-0024](#oq-0024): a GPS-disciplined **LO**,
-not merely a disciplined slot clock. Three questions — preamble length, concurrent relaying,
-and reach — now hang off the same piece of hardware. [OQ-0003](#oq-0003) should absorb it.
+**Carrier frequency offset is the risk — and the stated mitigation is the hazard.**
+
+Two transmitters a few hundred hertz apart produce a beat, and during destructive periods the
+composite fades. With 16% FEC there is not much to ride it out with. That much stands.
+
+**What this entry got backwards, corrected 2026-08-22:** it named a GPS-disciplined **LO** as
+the fix. Beat frequency equals the offset exactly, and the burst is 36.68 ms, so the beat
+period equals or exceeds the entire burst when **|Δf| ≤ 27.3 Hz — 0.176 ppm at 155 MHz**.
+A GPS-disciplined reference sits three orders of magnitude *inside* that window, with a phase
+relationship that does not move, so a null persists for a whole talk spurt at a given geometry
+rather than flickering through recoverable valleys. A plain 2 ppm crystal gives 310 Hz and
+about eleven beats per burst, which averages out.
+
+**Sloppy references are what make concurrent transmission work.** Glossy and BlueFlood get
+intra-packet time diversity free from exactly the oscillator error this project was proposing
+to engineer away, and TrellisWare dither deliberately. Baddeley et al. name slow beating as the
+dangerous case precisely because *"the packet transmission always spans one or more destructive
+valleys"*.
+
+So the dependency on [OQ-0024](#oq-0024) is real but points the other way, and
+[OQ-0003](#oq-0003) and **D-03** inherit it: neither oscillator option escapes the window, so
+the question is not how tight a reference to buy but whether to introduce deliberate dither.
+That is a protocol and PHY decision, not a procurement one.
 
 ### Bench test
 
@@ -1476,13 +1494,19 @@ receiving. Sweep, and measure PER at the receiver:
 | Sweep | Range | Decides |
 |---|---|---|
 | Relative power | 0–20 dB | Whether capture alone carries it, or combining is needed |
-| **Frequency offset** | 0 to ±1 kHz | **The one that matters.** How much LO discipline is required |
+| **Frequency offset** | **log scale: 0, 3, 6, 12, 25, 50, 100, 250, 500, 1000 Hz** | **The one that matters.** A linear sweep to 1 kHz steps straight over the 0–30 Hz danger zone |
 | Timing offset | 0 to ±200 µs | How much of a symbol can be lost before it fails |
 | Number of concurrent copies | 2, 3, 4 | Whether it degrades with the crowd — barrage produces 4+ |
 
-Run the frequency sweep first. If PER stays flat to ±200 Hz, ADR-0011 stands and so do seven
-hops. If it collapses inside ±50 Hz, the election returns and the product is three hops until
-the LO is disciplined.
+Run the frequency sweep first, and read it low rather than high. **If PER collapses inside
+±30 Hz the LO must NOT be disciplined further** — that is the region a good reference puts you
+in, and the answer is deliberate dither or an interleaver, not a better oscillator. If PER
+stays flat across the whole log sweep, ADR-0011 stands and so do seven hops. If it degrades
+only above a few hundred hertz, ordinary references are fine and the risk was overstated.
+
+Record the bit-error position histogram alongside PER at every point: a histogram periodic at
+the programmed Δf is direct evidence of beating and distinguishes the mechanism from a plain
+sensitivity loss.
 
 ### How much has to be true — measured, not assumed
 
