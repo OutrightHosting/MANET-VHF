@@ -980,9 +980,28 @@ project and it was invisible because every scenario ever run had exactly one tal
 
 Seven-node woodland chain, spacing 0.9× usable range:
 
+> **The single-talker row below is stale — corrected 2026-08-22 (B-08).** It was measured
+> before the originator-echo defect was fixed, when a talker relayed its own payload back
+> into the network and those spurious copies were buying redundancy that inflated delivery.
+> Re-measured on the same chain today:
+>
+> | | n0 alone |
+> |---|---|
+> | **Barrage** ([ADR-0011](decisions/0011-barrage-relaying.md)) | **100 / 97 / 96 / 93 / 90 / 88 / 87** — hop 6 at 5.0 slots |
+> | Election (what this entry was written against) | 100 / 69 / 51 / 44 / 38 / 37 / 37 — hop 6 at 11.2 slots |
+>
+> So there is no regression: the barrage figure is far better than anything the election
+> ever produced. An adversarial agent reporting `100/61/46/40/36/35/35` as evidence of one
+> had measured the *election* baseline, which today reads `100/69/51/44/38/37/37` — the same
+> regime within noise, not a decline from 97%.
+>
+> Note also that spacing between 0.55× and 0.9× of the horizon makes no difference to this
+> chain at all: at both, every node reaches its immediate neighbours and nothing further, so
+> the topology is identical.
+
 | Talkers | Stream reach |
 |---|---|
-| n0 alone | 100 / 100 / 99 / 99 / 98 / 97 / 97 |
+| n0 alone | 100 / 100 / 99 / 99 / 98 / 97 / 97 *(stale — see above)* |
 | n0 **and** n6 | n0 → 100/100/97/**0/0/0/0** · n6 → **0/0/0/0**/97/100/100 |
 | n0 **and** n3 | n0 → 100/100/**0/0/0/0/0** · n3 → 0/0/100/100/99/99/99 |
 

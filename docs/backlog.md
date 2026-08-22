@@ -129,9 +129,21 @@ been filed rather than left to make the phase feel unfinished:
       measured at the same split, **the far side is receiving voice again immediately on
       restore in both modes**, while the tables are still catching up. Tracked separately as
       **M-05** — quote service recovery, not table recovery.
-- [ ] **B-08 · Possible regression in single-talker chain delivery.** An agent measured
-      `100/61/46/40/36/35/35` where [OQ-0021](open-questions.md#oq-0021) records
-      `100/100/99/99/98/97/97`. *Hours.*
+- [x] **B-08 · Suspected regression in single-talker chain delivery.** ✅ **Investigated
+      2026-08-22 — no regression. Three different things were being compared.**
+
+      | | 7-chain, n0 alone |
+      |---|---|
+      | OQ-0021 recorded | 100 / 100 / 99 / 99 / 98 / 97 / 97 |
+      | **Barrage today** | **100 / 97 / 96 / 93 / 90 / 88 / 87** |
+      | Election today | 100 / 69 / 51 / 44 / 38 / 37 / 37 |
+      | What the agent measured | 100 / 61 / 46 / 40 / 36 / 35 / 35 |
+
+      The agent's row matches **today's election** within noise — they measured the
+      pre-[ADR-0011](decisions/0011-barrage-relaying.md) baseline, not a decline. And
+      OQ-0021's near-perfect row matches neither, because it was taken before the
+      originator-echo defect was fixed, when a talker relayed its own payload back into the
+      network and the spurious copies inflated delivery. OQ-0021 corrected in place.
 - [ ] **B-10 · `multi_talker` is never called.** The harness function that would have caught
       B-04b exists and nothing invokes it. *Hours.*
 - [x] **B-11 · Hardcoded distances, fixed structurally.** ✅ **Done 2026-08-22.** Four
