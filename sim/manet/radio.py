@@ -42,6 +42,18 @@ class LinkBudget:
     body_loss_db: float = 4.0   # per end — belt-clipped against a torso
     sensitivity_dbm: float = -116.0
     capture_db: float = 10.0    # C/I a 4FSK demodulator needs to hold the wanted signal
+    # Log-normal shadowing, one standard deviation.
+    #
+    # NOT copied from anyone: derived from FFI's own published quantiles for NBWF mode N1
+    # (22.0 km median, 13.1 km at the 90% level, 36.9 km at the 10% level, under Egli with
+    # exponent 4). Both sides independently give 7.0 dB, which is the check that it is a
+    # real parameter rather than a ratio somebody rounded, and it sits squarely in the
+    # published range for VHF land-mobile shadowing.
+    #
+    # Used for REPORTING only -- see usable_range_quantiles. The channel model itself is
+    # still deterministic, so a given pair of positions always produces the same result.
+    # Making it stochastic per link is a larger change and a separate question.
+    shadowing_db: float = 7.0
 
     @property
     def eirp_dbm(self):
@@ -167,6 +179,33 @@ def usable_range_m(env, budget, lo=1.0, hi=200000.0):
         else:
             hi = mid
     return lo
+
+
+def usable_range_quantiles(env, budget):
+    """
+    Range as a distribution, which is the only honest way to quote it.
+
+    A single number implies a certainty the physics does not have. Two radios the same
+    distance apart, in the same woodland, differ by several dB depending on what happens
+    to be between them -- so the useful statement is "half the links reach this far, nine
+    in ten reach at least this far".
+
+    Returns (p90, median, p10): the conservative figure, the median, and the optimistic
+    one. Note the ordering -- the 90% QUANTILE OF LINKS is the SHORTEST range, because it
+    is the distance nine links in ten will manage.
+    """
+    z = 1.2816   # normal quantile at 10% / 90%
+    med = usable_range_m(env, budget)
+    lo = usable_range_m(env, _with_margin(budget, +z * budget.shadowing_db))
+    hi = usable_range_m(env, _with_margin(budget, -z * budget.shadowing_db))
+    return lo, med, hi
+
+
+def _with_margin(budget, extra_loss_db):
+    """A copy of the budget with `extra_loss_db` of additional path loss to overcome."""
+    import dataclasses
+    return dataclasses.replace(
+        budget, sensitivity_dbm=budget.sensitivity_dbm + extra_loss_db)
 
 
 def _payload_key(payload):

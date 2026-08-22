@@ -166,7 +166,36 @@ been filed rather than left to make the phase feel unfinished:
 
       Both get the channel — B-04b's fix holds — and **neither stream crosses the other**,
       which is [OQ-0021](open-questions.md#oq-0021) unchanged. **W-04** is the fix.
-- [ ] **M-03 · Quote ranges as distributions, not points.**
+- [x] **M-03 · Quote ranges as distributions, not points.** ✅ **Done 2026-08-22.**
+
+      The shadowing figure is **derived, not borrowed**: FFI's published quantiles for mode
+      N1 (22.0 km median, 13.1 km at 90%, 36.9 km at 10%, Egli exponent 4) give
+      **σ = 7.0 dB from both sides independently** — the check that it is a real parameter
+      and not a rounded ratio. `LinkBudget.shadowing_db`, `usable_range_quantiles()`, and
+      the gate now prints the horizon as a distribution.
+
+      **And it turned up an argument for the mesh we did not have.** Independent shadowing
+      on each hop partly averages out, so reach becomes *more* predictable the further it
+      goes:
+
+      | hops | 9 in 10 reach | median | 1 in 10 reach | spread |
+      |---|---|---|---|---|
+      | 1 | 2.2 km | 4.4 km | 8.7 km | **3.9×** |
+      | 2 | 5.7 km | 9.4 km | 15.4 km | 2.7× |
+      | 4 | 13.7 km | 19.6 km | 28.2 km | 2.1× |
+      | 7 | 26.5 km | 34.9 km | 45.9 km | **1.7×** |
+
+      The mesh does not only extend reach, it makes reach less of a lottery — **a real
+      counterweight to [OQ-0030](open-questions.md#oq-0030)'s case for fewer, longer hops**,
+      since a small number of long links is exactly the arrangement most exposed to
+      shadowing. `sim/scenarios/reach_distribution.py`.
+
+      Reporting only: the channel model stays deterministic, so results remain reproducible.
+      Applying shadowing per link in the simulation is a larger change — **M-06**.
+- [ ] **M-06 · Apply shadowing per link in the channel, not just in reporting.** M-03 gives
+      the parameter (σ = 7.0 dB); the channel is still deterministic, so every link at a
+      given distance behaves identically and marginal links never flicker. Would need a seed
+      to stay reproducible, and would change every delivery figure. *Days, Phase 1+.*
 - [ ] **M-05 · Report recovery as time-to-voice, not time-to-tables.** B-06's alarming
       number measured neighbour-table convergence; voice recovers immediately because
       barrage floods rather than routing. The gate's Q5 reports a table figure. *Hours.* FFI give median, 10% and 90% at

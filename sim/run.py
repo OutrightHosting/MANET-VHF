@@ -66,8 +66,10 @@ def main():
     deep_enough = d["max_hop_depth"] >= MIN_DEPTH
     ok_mob = (d["converged_fraction"] >= 0.95 and d["min_delivery"] >= 0.90
               and deep_enough)
-    print(f"      radio horizon        {d['range_m']/1000:.2f} km — "
-          f"stretch is {d['spread_max']/d['range_m']:.1f}x it")
+    print(f"      radio horizon        {d['range_m']/1000:.2f} km median — "
+          f"{d['range_p90']/1000:.2f} km for 9 links in 10, "
+          f"{d['range_p10']/1000:.2f} km for 1 in 10")
+    print(f"                           stretch is {d['spread_max']/d['range_m']:.1f}x the median")
     print(f"      deepest topology     {d['max_hop_depth']} hops"
           f"{'' if deep_enough else f'   <- PRECONDITION FAILED: need >= {MIN_DEPTH}'}")
     print(f"      converged            {d['converged_fraction']*100:.1f}% of samples")

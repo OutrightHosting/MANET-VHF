@@ -15,7 +15,7 @@ pass or fail against each, so the gate is a command rather than a judgement call
 from ..manet.core import CONFIG
 from ..manet.mobility import DispersingGroup, SplinterRejoin
 from ..manet.geometry import hop_span_m, horizon_m, severed_m
-from ..manet.radio import ENVIRONMENTS, LinkBudget
+from ..manet.radio import ENVIRONMENTS, LinkBudget, usable_range_quantiles
 from ..manet.world import Simulation
 
 WOOD = ENVIRONMENTS["woodland"]
@@ -35,6 +35,8 @@ BUDGET = LinkBudget()
 # Neither criterion could fail, and both reported PASS for weeks. Deriving them from the
 # measured range means the next propagation change moves the test with it.
 RANGE_M = horizon_m(WOOD, BUDGET)
+# p90 is the SHORTEST: the distance nine links in ten will manage. M-03.
+RANGE_P90, _, RANGE_P10 = usable_range_quantiles(WOOD, BUDGET)
 
 # Stretch far enough that the group is genuinely several hops deep at full extension.
 DISPERSAL_HOPS = 6
@@ -123,6 +125,9 @@ def dispersal(n=12, cycles=2, samples=60, talk_s=8.0, gap_s=20.0, spread_max=Non
         "max_hop_depth": max_depth,
         "spread_max": spread_max,
         "range_m": RANGE_M,
+        # Range is a distribution, not a number. M-03.
+        "range_p90": RANGE_P90,
+        "range_p10": RANGE_P10,
     }
 
 
