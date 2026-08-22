@@ -230,46 +230,39 @@ been filed rather than left to make the phase feel unfinished:
       **200 radios went from 50.7% mean and 1/200 usable to 99.7% and 200/200**, and the
       usable hop depth went from 4 back to the full 7. [OQ-0033](open-questions.md#oq-0033).
 
-- [ ] **B-13 · Relaying is asymmetric either side of a centre talker.** Eight groups of six
-      in a line, talker in the middle. Delivery runs 93 / 94 / 99 / **100** / **100** / 49 /
-      47 / 46 — a cliff between group 4 and group 5, not a gradual decay. Cause is a
-      four-fold difference in relay rate between the two sides:
+- [x] **B-13 · Relaying was asymmetric either side of a centre talker.** ✅ **Fixed
+      2026-08-22, third attempt.** `manet_mpr_should_relay`'s **first** test was "do I know
+      this sender?", and on a miss it returned false and the frame stopped dead. Three lines
+      below, the same function already relays when the sender's coverage is unknown —
+      because that is exactly when pruning is impossible. The same question was being
+      answered both ways. **An unknown sender now relays.**
 
-      | | relays per radio |
-      |---|---|
-      | groups 0–3 (left of the talker) | 706–867 |
-      | groups 4–7 (right of the talker) | 192–212 |
+      It is not a rare case: the table holds 16 and a radio in a moderately dense group has
+      more neighbours than that, so a perfectly good sender gets evicted and every frame it
+      carries stops at whoever dropped it. Here a single group-3 radio had been evicted from
+      the group-4 tables on a **−108 dBm link** — 8 dB clear of sensitivity.
 
-      Group 2 and group 4 are both one hop from the talker on identical topology, and group
-      4 is marginally *closer*. Group 4 receives 100% and forwards about a third of it.
+      ```
+      before   94  95 100 100 100   2   1   1
+      after    94  94  99 100  99  95  89  89
+      ```
 
-      **Second attempt, 2026-08-22 — got the mechanism, did not fix the cliff.** Instrumenting
-      the decision itself: group 4 declines **39.4%** of receptions saying it heard the frame
-      from group 3, where group 2 declines 0.4%. `manet_mpr_should_relay` walks the
-      *symmetric* neighbour set looking for somebody the sender cannot reach — and group 4
-      had lost its group-5 neighbours to table eviction:
+      **It also resolved the unexplained regression noted against B-05** — the 40-radio
+      pressure case, which had dropped to 66.1% after B-12, is now **96.0%**. Same root
+      cause, and the reason it looked like a B-12 side effect is that B-12 raised delivery
+      enough for the eviction to start mattering.
 
-      | | in range | symmetric | missing from |
-      |---|---|---|---|
-      | radio 12 (group 2) | 17 | 16 | group 1 |
-      | radio 24 (group 4) | 17 | 15 | groups 3 **and 5** |
-      | radio 27 (group 4) | 17 | **10** | groups 3 **and 5** |
+      | radios | before | after |
+      |---|---|---|
+      | 32 | 93.0% | 93.7% |
+      | 40 | **66.1%** | **96.0%** |
+      | 48 | 84.9% | **93.2%** |
 
-      **The frontier neighbour is always the weakest link, so quality-ranked eviction
-      ([B-05](#)) throws it away first — and it is the only reason relaying is worth doing.**
-      That is a real defect in the eviction policy.
-
-      A fix was written (protect any neighbour that is the sole route to somewhere) and
-      **reverted**: it retained 5 of 6 frontier neighbours where before it kept 0–2, and the
-      delivery cliff did not move at all — 100 → 49 either way. So the eviction is *a* cause
-      and not *the* cause. Reverting rather than keeping a change that does not do what it
-      was written for. **Root cause still not established.** *Days.*
-- [ ] **B-14 · The 90% threshold reads as pass/fail and it is not.** "Four groups along a
-      valley" reports 8/16 in the conversation with a **worst node of 89.3%** — seven tenths
-      of a point under the line, presented as broken speech. The threshold is a hard line
-      through a soft boundary and the cards make it look categorical. **Done when:** the
-      atlas shows the distribution rather than a binary, or the flag names the actual worst
-      figure so 89.3% is not confused with 40%. *Hours.*
+      Two earlier attempts failed: per-radio voice phase (ruled out by measurement) and
+      protecting frontier neighbours from eviction (implemented, tripled the relay count,
+      moved delivery not at all, reverted). The step that worked was shrinking the case
+      until the asymmetry vanished, which isolated it to *which* radio in the middle group
+      was speaking.
 
 ## Phase 0 — done
 
@@ -365,6 +358,12 @@ been filed rather than left to make the phase feel unfinished:
 
 # Housekeeping — do when passing, never as a priority
 
+- [ ] **H-07 · The 90% threshold reads as pass/fail and it is not.** "Four groups along a
+      valley" reports 8/16 in the conversation with a **worst node of 89.3%** — seven tenths
+      of a point under the line, presented as broken speech. The threshold is a hard line
+      through a soft boundary and the cards make it look categorical. **Done when:** the
+      atlas shows the distribution rather than a binary, or the flag names the actual worst
+      figure so 89.3% is not confused with 40%. *Hours.*
 - [ ] **H-01 · Rewrite the OQ-0012 entry** — stale in both directions per the Phase 0 audit.
 - [ ] **H-02 · Correct OQ-0004's findings** and re-derive the beacon interval for the 160 ms
       frame. 33 frames was chosen against a 60 ms frame and silently changed meaning.

@@ -22,6 +22,7 @@ yet in any of them.
 | [OQ-0031](#oq-0031) | GPS holdover and network time transfer | Phase 0 design, Phase 1 measure | Whether losing GPS loses the network | **Open** |
 | [OQ-0032](#oq-0032) | Dense cover spends the hop budget before the group ends | **Phase 0** | Coverage in woodland. 12/12 connected, 8/12 hearing | **Open** |
 | [OQ-0033](#oq-0033) | ~~Half of all payloads die at the talker's first hop~~ | — | — | **Closed** — simulator counted undetectable signals as interference |
+| [OQ-0034](#oq-0034) | ~~Relay decision refused unknown senders~~ | — | — | **Closed** — an unknown sender now relays; see backlog B-13 |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1808,3 +1809,29 @@ untested rather than presented as the answer.
 **Blocking, because every scattered-mesh figure in [the atlas](../sim/scenarios/atlas.py)
 inherits it**, and because a 50% ceiling that density cannot lift is either a real protocol
 defect or a simulator defect. Both matter and neither is acceptable to leave unexplained.
+
+## OQ-0034
+### The relay rule refused a sender it had merely forgotten
+
+Closed on the day it was raised; recorded because the shape of the mistake is worth keeping.
+
+`manet_mpr_should_relay` opened with *"do I have an entry for this sender?"* and returned
+**false** on a miss — stopping the frame. Three lines below, the same function returns
+**true** when the sender's entry exists but carries no advertised coverage, on the explicit
+grounds that *"if we have never heard what the sender can reach, we cannot prune, so we
+relay"*.
+
+Both are the same situation — we do not know what the sender covers — and they were answered
+opposite ways. The comment justifying one was sitting directly beneath the code doing the
+other.
+
+**Why it bit.** `MANET_MAX_NEIGHBOURS` is 16 and a radio in a moderately dense group hears
+more than that, so eviction drops a sender on a perfectly good link and every frame that
+sender relays dies at whoever forgot them. Measured on a **−108 dBm** link, 8 dB clear of
+sensitivity.
+
+**The general lesson, and it is the third time today:** a table that silently forgets things
+produces failures that look like protocol defects. [B-05](../docs/backlog.md) was the first
+symptom, [B-13](../docs/backlog.md) the second, and the 40-radio regression blamed on
+[OQ-0033](#oq-0033) the third. `MANET_MAX_NEIGHBOURS` deserves re-deriving from the density
+the product actually has to survive rather than from the twelve-leader case it was sized for.

@@ -242,10 +242,26 @@ bool manet_mpr_should_relay(const manet_nb_table_t *t, manet_addr_t from)
      * this is a broadcast being carried onward — the sender does not need to hear us
      * for that to be useful, and demanding symmetry here makes relaying depend on a
      * beacon arriving, which under load is exactly what does not happen.
+     *
+     * AN UNKNOWN SENDER RELAYS. We are holding a frame we just decoded from them, so
+     * the link exists whatever the table says; what is missing is any knowledge of what
+     * they cover, and that is precisely the case where pruning is impossible. Three lines
+     * below, an entry with no advertised coverage relays for exactly this reason — this
+     * used to return false instead, which is the same question answered both ways.
+     *
+     * It is not a rare case. The table holds MANET_MAX_NEIGHBOURS and a radio in a
+     * moderately dense group has more neighbours than that, so a perfectly good sender
+     * gets evicted and every frame it relays stops dead at anyone who dropped it.
+     * Measured: eight groups of six in a line, talker in the middle, one side delivering
+     * 100% and the other 49%, because a single group-3 radio had been evicted from the
+     * tables of the group-4 radios on a -108 dBm link.
      */
     e = manet_nb_get(t, from);
-    if (e == NULL || e->link == MANET_LINK_NONE) {
-        return false;
+    if (e == NULL) {
+        return true;
+    }
+    if (e->link == MANET_LINK_NONE) {
+        return true;
     }
 
     /*
