@@ -21,6 +21,7 @@ yet in any of them.
 | [OQ-0030](#oq-0030) | Are we optimising the wrong thing — hop count instead of range per hop? | **Now, it is a strategy question** | Direction of the whole MAC effort | **Open** |
 | [OQ-0031](#oq-0031) | GPS holdover and network time transfer | Phase 0 design, Phase 1 measure | Whether losing GPS loses the network | **Open** |
 | [OQ-0032](#oq-0032) | Dense cover spends the hop budget before the group ends | **Phase 0** | Coverage in woodland. 12/12 connected, 8/12 hearing | **Open** |
+| [OQ-0033](#oq-0033) | **Half of all payloads die at the talker's first hop** | **Phase 0** | Every scattered-mesh figure. Adding radios does not fix it | **Open, blocking** |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1711,3 +1712,65 @@ buy 2.4 km of ground, where at our default they buy 30 km.
 
 `sim/scenarios/dense_cover.py`. Raised by the user, from the observation that the triangle
 is not the only geometry a group can be in.
+
+## OQ-0033
+### Half of all payloads die at the talker's first hop, and adding radios does not fix it
+
+Raised by the user, from the observation that a mesh which gets *worse* as radios are added
+is not behaving like a mesh. It does not, and the cause is not what it looks like.
+
+**Adding radios to the same ground barely helps.** 100 radios over 38 km:
+
+| radios | neighbours each | mean delivery | usable (≥90%) |
+|---|---|---|---|
+| 40 | 1.9 | 12.0% | 4/40 |
+| 100 | 5.5 | 46.7% | 1/100 |
+| 200 | 11.5 | **50.7%** | **1/200** |
+
+Five times the density, and it plateaus near 50%. That is not a connectivity problem.
+
+**The loss is entirely at the first hop.** Delivery against hop depth, 100 radios:
+
+| hop | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|
+| delivered | **49.0%** | 48.8% | 48.5% | 47.0% | 45.4% | 43.7% | 40.0% |
+| implied per hop | **49.0%** | 99.4% | 99.5% | 96.9% | 96.6% | 96.1% | 91.7% |
+
+**Hops two through seven are near perfect.** The mesh is working. Half of everything the
+talker says never reaches its own neighbours.
+
+**What happens at that first hop**, measured at the talker's five direct neighbours:
+
+| | |
+|---|---|
+| collided | **52.4%** |
+| heard the talker | 46.5% |
+| deaf, own PA keyed | 0.7% |
+
+So it is collision, not deafness and not range. The interferers are radios 3.9–7.0 km from
+the talker — **some of them the talker's own neighbours** — and the wanted signal arrives
+with a **median margin of −0.3 dB** against them. Capture needs 10 dB. Nothing survives.
+
+### What has been ruled out
+
+- **Density.** More radios makes it slightly better, then plateaus. Not the cause.
+- **Neighbour-table overflow.** Fixed under [B-05](backlog.md); the plateau is unchanged.
+- **Different payloads colliding** — pipeline self-interference at the 4-slot spatial reuse
+  distance ([OQ-0013](#oq-0013)). Measured: a radio hears two or more *different* payloads in
+  the same slot in **0.1%** of slots. Too rare to explain a 52% loss.
+- **Hop-4 relays reaching the talker's neighbours.** Zero audible pairs in either a chain or
+  a scatter.
+
+### What has not been established
+
+**Which transmission is actually winning the receiver.** `Channel.decode` locks to the
+strongest signal and treats everything else as interference *unless it carries the identical
+payload* ([ADR-0011](decisions/0011-barrage-relaying.md)). If a neighbour is closer to
+another relay than to the talker, it may be locking onto the louder older copy and losing
+both. That is a hypothesis and **it is not yet measured** — three earlier hypotheses about
+this failure were each disproved by the next measurement, so this one is recorded as
+untested rather than presented as the answer.
+
+**Blocking, because every scattered-mesh figure in [the atlas](../sim/scenarios/atlas.py)
+inherits it**, and because a 50% ceiling that density cannot lift is either a real protocol
+defect or a simulator defect. Both matter and neither is acceptable to leave unexplained.

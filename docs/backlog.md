@@ -215,6 +215,15 @@ been filed rather than left to make the phase feel unfinished:
       the two diverge at scale, which is what made B-06 read as "7.6× slower" when the
       service had already recovered.
 
+- [ ] **B-12 · Half of all payloads die at the talker's first hop.**
+      [OQ-0033](open-questions.md#oq-0033). Hops 2–7 run at 96–99%; hop 1 runs at **49%**,
+      and it is collision rather than range or deafness — wanted signal arriving at a
+      **median −0.3 dB** against the interferer where capture needs 10 dB. Density does not
+      fix it: 40 → 200 radios on the same ground plateaus near 50%. Three hypotheses have
+      been disproved (spatial reuse, hop-4 relays, table overflow); the next candidate is
+      the receiver locking onto a louder older copy. **Blocking — every scattered-mesh
+      figure depends on it.** *Days.*
+
 ## Phase 0 — done
 
 - [x] **B-01 · Gate Q1 never went multi-hop.** Stretch derived from measured range: 15.5 km,

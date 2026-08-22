@@ -249,12 +249,49 @@ class Channel:
             self._loss_cache[key] = loss
         return self.budget.eirp_dbm + self.budget.rx_offset_db - loss
 
+    # Log-normal shadowing applied PER LINK rather than only in reporting. Off by default
+    # because it changes every delivery figure in the project; see SHADOW_GRID_M.
+    SHADOWING = False
+
+    # Decorrelation distance. Shadowing is caused by what is physically between two radios
+    # -- a thicket, a dip, a wall -- so it is stable while they stand still and changes as
+    # they walk. Quantising position to this grid gives exactly that: the same pair in the
+    # same place always gets the same answer, and moving a grid step gets a new one.
+    # 100 m is mid-range for the published figures on land-mobile shadowing.
+    SHADOW_GRID_M = 100.0
+
+    def _shadow_db(self, a, b):
+        """
+        A stable pseudo-random fade for this pair, in this place.
+
+        Deterministic, so runs stay reproducible with no seed threaded through the
+        simulator, and SYMMETRIC, so a link is the same measured from either end -- a
+        radio that can hear you must be a radio you can hear.
+        """
+        g = self.SHADOW_GRID_M
+        pa = (int(a[0] // g), int(a[1] // g))
+        pb = (int(b[0] // g), int(b[1] // g))
+        lo, hi = (pa, pb) if pa <= pb else (pb, pa)
+
+        h = 0x811C9DC5
+        for v in (lo[0], lo[1], hi[0], hi[1]):
+            h = ((h ^ (v & 0xFFFF)) * 0x01000193) & 0xFFFFFFFF
+            h ^= h >> 15
+        # Box-Muller from two decorrelated words of the hash.
+        u1 = ((h & 0xFFFF) + 1) / 65537.0
+        h2 = (h * 0x9E3779B1) & 0xFFFFFFFF
+        u2 = (h2 >> 16) / 65536.0
+        z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
+        return z * self.budget.shadowing_db
+
     def rx_dbm_between(self, a, b):
         """Received power between two points, including terrain obstruction."""
         d = math.hypot(a[0] - b[0], a[1] - b[1])
         p = self.rx_dbm(d)
         if not isinstance(self.terrain, Flat):
             p -= diffraction_db(a, b, self.terrain, self.budget.freq_hz)
+        if self.SHADOWING:
+            p -= self._shadow_db(a, b)
         return p
 
     def decode(self, rx_pos, transmissions, positions):
