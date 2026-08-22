@@ -334,6 +334,44 @@ One item open: **M-06**.
       densities while *widening* the gap was the clue that the interval was never the
       variable.
 
+- [ ] **B-17 · Concurrent relays do not transmit the same bits, and the simulator credits
+      them as if they do.** The barrage premise is that identical co-slot copies combine
+      rather than collide. Ours are not identical.
+
+      `manet_sched_relay` stamps the relaying radio's own address into the header at every
+      hop — `manet_header_set_prev(&next.hdr, me)`, [slot.c:156](../core/src/slot.c). Two
+      relays firing the same payload in the same slot therefore emit **different waveforms**:
+      8 bits of address directly, plus the 94 FEC bits computed over the frame, so roughly
+      **102 of 704 on-air bits, 14.5% of the burst**.
+
+      Meanwhile `_payload_key()` in [radio.py](../sim/manet/radio.py) returns
+      `(src, seq, type)` and states outright that *"the relay carrying it is irrelevant"*. So
+      `Channel.decode` exempts those transmissions from each other's interference sum and
+      credits constructive combining for waveforms that are not the same waveform.
+      **`CONCURRENT_IDENTICAL` is modelling something the wire format cannot produce.**
+
+      Halford & Chugg (ITA 2010, §III.B) are explicit that *"node-specific packet
+      transformation must be suppressed: protocol headers can be modified only in a manner
+      that is hop-dependent."* TTL satisfies that — every relay at a given hop decrements it
+      identically. `prev` does not.
+
+      **This is upstream of D-01 and of every delivery figure in the project.** Until it is
+      fixed, a bench measurement of OQ-0028 would characterise a configuration that does not
+      ship, and the simulator's 99.93% rests on an assumption its own wire format violates.
+
+      Two candidate fixes, and they are not equivalent:
+      - take `prev` out of the voice header and derive the forwarding decision another way.
+        [literature-review.md](literature-review.md) already recommends E-CDS for the
+        independent reason that its forwarding rules do not depend on previous hop, so one
+        change buys both. Costs 8 header bits back to FEC.
+      - keep `prev` but exclude it and the FEC from the combining test, i.e. accept partial
+        combining. Needs a physical argument that a receiver locks to a copy despite 14.5% of
+        the burst differing — which is exactly what nobody has evidence for.
+
+      **First step is free:** make `_payload_key()` honest — key on the actual transmitted
+      bits — and re-run the atlas. That measures how much of the current delivery figure
+      depends on the defect. *Blocks a meaningful OQ-0028 bench test.*
+
 ## Phase 0 — done
 
 - [x] **B-01 · Gate Q1 never went multi-hop.** Stretch derived from measured range: 15.5 km,
