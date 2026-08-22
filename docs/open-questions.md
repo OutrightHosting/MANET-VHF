@@ -1882,3 +1882,44 @@ time. If it does not, then W-02 must carry the slot number explicitly, and that 
 format change to price in [ADR-0012](decisions/0012-network-time-authoritative.md).
 
 Raised 2026-08-22 while tracing what the B-15 reservation depends on.
+
+## OQ-0036
+
+**How much of shadowing is shared between nearby radios, and how much is each radio's own?**
+
+**Status:** open · **Phase:** 1 (bench) · **Relates to:** M-06,
+[ADR-0010](decisions/0010-terrain-diffraction.md)
+
+Shadowing is applied per link as two terms whose variances sum to σ = 7.0 dB:
+
+- **shared**, quantised to `SHADOW_GRID_M` = 100 m — two radios standing near each other look
+  through the same stand of trees at the same hillside, so they meet largely the same obstruction;
+- **local**, keyed on exact positions — the tree one person is beside, the dip they stand in,
+  which way their body is turned. Theirs alone, different for every link.
+
+`SHADOW_SHARED_FRACTION = 0.5` splits them evenly. **That 0.5 is a modelling choice, not a
+measurement.** Published correlation coefficients for land-mobile VHF run roughly 0.3 to 0.8
+depending on environment and antenna height, and 0.5 sits in the middle without being derived
+from anything.
+
+**Why it matters, measured.** The split barely moves how likely any *single* link is to work —
+mean links up between two groups of four at 0.9× horizon is 9.4 of 16 whichever value is used.
+What it decides is whether links fail *together*. With the shared term carrying everything
+(fraction 1.0, which is what the model did before this entry), a whole group boundary goes dead
+8.2% of the time, because four radios in one 100 m grid cell take a single roll of the dice. At
+0.5 that falls to **0.3%**, a factor of 27, and at 0.0 it is nil.
+
+So the fraction is a direct control on how brittle clustered groups look — and clustered groups
+are the topology the product is for. It should be measured rather than assumed.
+
+**What would settle it.** Two handsets a fixed distance from a third, walking a route together
+at varying separations, logging RSSI on both. The correlation between the two received levels as
+a function of their separation gives both the coefficient and the decorrelation distance
+directly. It is the same field exercise that would validate ITU-R P.833 against our own woodland,
+so it costs one outing, not two.
+
+**Until then**, quote clustered-group figures as resting on an assumed correlation, and note that
+the sensitivity is one-sided: a higher shared fraction makes groups look more fragile, never less.
+
+Raised 2026-08-22 after a scale scenario collapsed from 32/32 radios to 4/32 under the
+all-shared model, and the cause turned out to be the grid being coarser than a group.

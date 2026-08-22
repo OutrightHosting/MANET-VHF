@@ -260,36 +260,74 @@ class Channel:
     # because it changes every delivery figure in the project; see SHADOW_GRID_M.
     SHADOWING = False
 
-    # Decorrelation distance. Shadowing is caused by what is physically between two radios
-    # -- a thicket, a dip, a wall -- so it is stable while they stand still and changes as
-    # they walk. Quantising position to this grid gives exactly that: the same pair in the
-    # same place always gets the same answer, and moving a grid step gets a new one.
-    # 100 m is mid-range for the published figures on land-mobile shadowing.
+    # Decorrelation distance for the SHARED half of the fade. Shadowing is caused by what is
+    # physically between two radios -- a thicket, a dip, a wall -- so it is stable while they
+    # stand still and changes as they walk. Quantising position to this grid gives exactly
+    # that: the same pair in the same place always gets the same answer, and moving a grid
+    # step gets a new one. 100 m is mid-range for the published figures on land-mobile
+    # shadowing.
     SHADOW_GRID_M = 100.0
 
-    def _shadow_db(self, a, b):
-        """
-        A stable pseudo-random fade for this pair, in this place.
+    # How the total sigma splits between the two halves below. Variances add, so each half
+    # carries sigma * sqrt(SHADOW_SHARED_FRACTION) and sigma * sqrt(1 - it), and the total is
+    # unchanged at LinkBudget.shadowing_db. 0.5 is an even split and is a MODELLING CHOICE,
+    # not a measured value -- the literature reports correlation coefficients between about
+    # 0.3 and 0.8 depending on environment and antenna height, and 0.5 sits in the middle of
+    # that. See OQ-0036.
+    SHADOW_SHARED_FRACTION = 0.5
 
-        Deterministic, so runs stay reproducible with no seed threaded through the
-        simulator, and SYMMETRIC, so a link is the same measured from either end -- a
-        radio that can hear you must be a radio you can hear.
-        """
-        g = self.SHADOW_GRID_M
-        pa = (int(a[0] // g), int(a[1] // g))
-        pb = (int(b[0] // g), int(b[1] // g))
-        lo, hi = (pa, pb) if pa <= pb else (pb, pa)
-
+    @staticmethod
+    def _gauss(*words):
+        """A standard normal deviate from a stable hash of the given integers."""
         h = 0x811C9DC5
-        for v in (lo[0], lo[1], hi[0], hi[1]):
-            h = ((h ^ (v & 0xFFFF)) * 0x01000193) & 0xFFFFFFFF
+        for v in words:
+            h = ((h ^ (v & 0xFFFFFFFF)) * 0x01000193) & 0xFFFFFFFF
             h ^= h >> 15
         # Box-Muller from two decorrelated words of the hash.
         u1 = ((h & 0xFFFF) + 1) / 65537.0
         h2 = (h * 0x9E3779B1) & 0xFFFFFFFF
         u2 = (h2 >> 16) / 65536.0
-        z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
-        return z * self.budget.shadowing_db
+        return math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
+
+    def _shadow_db(self, a, b):
+        """
+        A stable pseudo-random fade for this pair, in this place, in TWO parts.
+
+        Deterministic, so runs stay reproducible with no seed threaded through the
+        simulator, and SYMMETRIC, so a link is the same measured from either end -- a
+        radio that can hear you must be a radio you can hear.
+
+        SHARED: quantised to SHADOW_GRID_M. Two radios standing near each other really do
+        look through the same stand of trees at the same hillside, so the obstruction they
+        meet is largely the same obstruction.
+
+        LOCAL: keyed on the exact positions, so every link gets its own draw. This is the
+        tree one person happens to be beside, the dip they are standing in, which way their
+        body is turned. It belongs to that pair and nobody else.
+
+        THE LOCAL HALF IS WHY THIS IS NOT ONE HASH. With only the shared term, every radio
+        in a group sits in a single grid cell and all sixteen links between two groups of
+        four take ONE roll of the dice -- measured, and a bad roll severed all sixteen at
+        once, taking a scale scenario from 32/32 radios in the conversation to 4/32. Real
+        groups do not fail that way: a huddle of four has four different sets of local
+        clutter, and that diversity is most of what makes standing together useful.
+        """
+        g = self.SHADOW_GRID_M
+        pa = (int(a[0] // g), int(a[1] // g))
+        pb = (int(b[0] // g), int(b[1] // g))
+        lo, hi = (pa, pb) if pa <= pb else (pb, pa)
+        shared = self._gauss(lo[0], lo[1], hi[0], hi[1], 0x5EED)
+
+        # Decimetre resolution: fine enough that co-located radios differ, coarse enough
+        # that floating-point noise cannot change the answer.
+        qa = (int(round(a[0] * 10.0)), int(round(a[1] * 10.0)))
+        qb = (int(round(b[0] * 10.0)), int(round(b[1] * 10.0)))
+        la, lb = (qa, qb) if qa <= qb else (qb, qa)
+        local = self._gauss(la[0], la[1], lb[0], lb[1], 0xC10D)
+
+        f = self.SHADOW_SHARED_FRACTION
+        return self.budget.shadowing_db * (
+            math.sqrt(f) * shared + math.sqrt(1.0 - f) * local)
 
     def rx_dbm_between(self, a, b):
         """Received power between two points, including terrain obstruction."""

@@ -207,10 +207,28 @@ One item open: **M-06**.
 
       Reporting only: the channel model stays deterministic, so results remain reproducible.
       Applying shadowing per link in the simulation is a larger change — **M-06**.
-- [ ] **M-06 · Apply shadowing per link in the channel, not just in reporting.** M-03 gives
-      the parameter (σ = 7.0 dB); the channel is still deterministic, so every link at a
-      given distance behaves identically and marginal links never flicker. Would need a seed
-      to stay reproducible, and would change every delivery figure. *Phase 1+.*
+- [~] **M-06 · Apply shadowing per link in the channel, not just in reporting.** M-03 gives
+      the parameter (σ = 7.0 dB); the channel was deterministic, so every link at a given
+      distance behaved identically and marginal links never flickered.
+
+      **The "would need a seed" objection was wrong** and is part of why this sat unactioned.
+      The fade is a hash of position — deterministic across fresh instances, symmetric in both
+      directions, stable while radios stand still, re-rolled when they move a grid step. No
+      seed, no loss of reproducibility.
+
+      **Implemented as two scales**, after measuring that a single grid-quantised term made a
+      whole group share one roll of the dice: 100 m grid, groups 60 × 50 m, so sixteen links
+      between two groups took **two** distinct fade values and a scale scenario fell from
+      32/32 radios to 4/32. Now a shared term (terrain and clutter both radios look through)
+      plus a local term (each radio's own surroundings), variances summing to the same 7.0 dB.
+      Total severance of a group boundary: **8.2% → 0.3%**, with mean links up unchanged at
+      9.4 of 16. Split recorded as [OQ-0036](open-questions.md#oq-0036) — it is assumed, not
+      measured.
+
+      **Still to decide: whether it goes on by default.** Off today. Aggregate across the
+      atlas under the old single-scale model was 94.4% → 92.2% of radios in the conversation,
+      but the average hid the finding: dispersed topologies were untouched, TTL-bound lines
+      *improved* (a lucky long link skips a hop), and only tight-group chains collapsed.
 - [x] **M-07 · Gate the dense-cover case.** ✅ **Done 2026-08-22.** Gate **Q7** — twelve
       leaders in cover with a 350 m horizon, sweeping the spread and reporting where the
       group splits. Currently: holds together to **1.5 km**, splits at 2 km with 12/12
