@@ -121,6 +121,42 @@ WOODLAND = Environment("dense woodland", exponent=3.0, foliage=True)
 ENVIRONMENTS = {"open": OPEN, "woodland": WOODLAND}
 
 
+def egli_path_loss_db(d_m, freq_hz, h_tx_m=1.5, h_rx_m=1.5):
+    """
+    Egli (1957), median path loss over irregular terrain below 1 GHz:
+
+        L50 = 20 log10(f_MHz) + 40 log10(d_km) - 20 log10(h_tx * h_rx) + 76.3
+
+    Here as an INDEPENDENT CROSS-CHECK on `Environment.path_loss_db`, not as a replacement.
+    FFI used Egli for NBWF after discarding the NBWF physical-layer draft's own model as
+    giving exaggerated ranges, so it is the natural second opinion (see nbwf-lessons.md).
+
+    Note what transplanting FFI's "exponent 4" alone would get wrong: Egli's intercept and
+    its antenna-height term are both different from a free-space-intercept log-distance
+    model. Setting exponent=4.0 in Environment gives 568 m where Egli gives 3967 m for the
+    same radio. The exponent does not travel on its own.
+    """
+    f_mhz = freq_hz / 1e6
+    d_km = max(float(d_m), 1.0) / 1000.0
+    return (20.0 * math.log10(f_mhz) + 40.0 * math.log10(d_km)
+            - 20.0 * math.log10(h_tx_m * h_rx_m) + 76.3)
+
+
+def egli_range_m(budget, h_tx_m=1.5, h_rx_m=1.5, margin_db=0.0):
+    """Range at which Egli's median loss reaches the budget. `margin_db` subtracts fade
+       margin -- FFI's published 22 km implies about 12 dB of it that their table does not
+       itemise."""
+    limit = budget.max_path_loss_db - margin_db
+    lo, hi = 1.0, 300000.0
+    for _ in range(80):
+        mid = (lo + hi) / 2.0
+        if egli_path_loss_db(mid, budget.freq_hz, h_tx_m, h_rx_m) < limit:
+            lo = mid
+        else:
+            hi = mid
+    return lo
+
+
 def usable_range_m(env, budget, lo=1.0, hi=200000.0):
     """Distance at which the wanted signal just reaches the demodulator."""
     limit = budget.max_path_loss_db

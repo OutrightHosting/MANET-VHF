@@ -62,10 +62,16 @@ been filed rather than left to make the phase feel unfinished:
 
 ## Phase 0 — remaining, and none of it blocks Phase 1
 
-- [ ] **M-01 · Re-run everything at γ = 4.** FFI discarded the model giving longer ranges as
-      exaggerated and used Egli with exponent 4; ours is 2.97, tuned to make 4.8 km come out
-      ([OQ-0023](open-questions.md#oq-0023)). Costs CPU and nothing else. **Do this one** —
-      it is the last Phase 0 item with real consequences. *A day.*
+- [x] **M-01 · Re-run everything at γ = 4.** ✅ **Done 2026-08-21 — and the challenge does
+      not survive being run.** Transplanting FFI's exponent alone is wrong in both
+      directions: Egli has its own intercept and antenna-height term, so `exponent = 4.0` in
+      our model gives 568 m where **Egli proper gives 3967 m against our 4416 m — agreement
+      within 11%**. The real uncertainty is **2×, and it is fade margin in the link budget**,
+      not the exponent: FFI's published 22 km implies ~12 dB they do not itemise, which puts
+      our woodland range at 1.9 km rather than 4.4 km. **Protocol conclusions untouched — 7
+      hops at every exponent**, per-hop delivery actually better at the pessimistic one. Also
+      caught the gate's defect class in `hill.py`, whose geometry was hardcoded and is now
+      derived. [OQ-0023](open-questions.md#oq-0023) closed.
 - [ ] **B-05 · Neighbour table overflows at 24+ co-located nodes.** `MANET_MAX_NEIGHBOURS` is
       16; the scale agent had to design around it. Silently caps every dense measurement.
       *Half a day.*

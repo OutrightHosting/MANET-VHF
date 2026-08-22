@@ -41,7 +41,7 @@ yet in any of them.
 | [OQ-0020](#oq-0020) | How large can the network be? | **Phase 0** | Sizing of TTL, tables and beacon pool | Open — earlier answer was wrong |
 | [OQ-0021](#oq-0021) | Many-to-many — streams now cross; `dst` still inert | **Phase 0** | Addressed calls; concurrent-stream quality | Open — no longer total failure |
 | [OQ-0022](#oq-0022) | ~~Which latency budget applies~~ | — | — | **Closed** — 500 ms mouth-to-ear |
-| [OQ-0023](#oq-0023) | Vegetation model fixed; **exponent 2.97 now challenged by FFI's γ=4** | — | Every range figure in the project | **RE-OPENED** — see [nbwf-lessons.md §4](nbwf-lessons.md) |
+| [OQ-0023](#oq-0023) | ~~Vegetation model~~; ~~exponent challenged by FFI's γ=4~~ | — | — | **Closed** — M-01: our model agrees with Egli within 11%; the real uncertainty is 2× and lives in the link budget |
 
 ---
 
@@ -1146,6 +1146,65 @@ Original discussion: At a 500 ms budget the 90 ms /
 more than three whatever the structure.
 
 ## OQ-0023
+
+> ## Closed 2026-08-21 by M-01. The challenge does not survive being run.
+>
+> FFI discarded the NBWF physical-layer draft's propagation model as giving *"highly
+> exaggerated values"* and used Egli with a path-loss exponent of 4. Ours is 3.0 plus an
+> ITU-R P.833 vegetation term. That looked like a direct contradiction and it is not.
+>
+> **Transplanting the exponent alone is wrong, in both directions.** Egli has its own
+> intercept and an antenna-height term; a free-space-intercept log-distance model with
+> `exponent = 4.0` is not Egli and does not approximate it:
+>
+> | Model, same 137 dB budget | Single-hop range |
+> |---|---|
+> | Ours — γ 3.0 + ITU-R P.833 foliage | **4416 m** |
+> | Naive transplant — γ 4.0 + foliage | 568 m — *double-counts clutter* |
+> | γ 4.0, no foliage | 1044 m |
+> | **Egli proper, 1.5 m antennas** | **3967 m** |
+>
+> **Our model and Egli agree within 11%** when both are driven by the same link budget. The
+> alarm came from moving one parameter between two models that do not share the others.
+>
+> ### The uncertainty is real but it is somewhere else
+>
+> Reproducing FFI's own published 22 km median from their radio (50 W, 60 MHz, 2.5 m masts)
+> gives **43.5 km** under Egli — a factor of two out. Their published figure implies a max
+> path loss of 149.6 dB where reconstructing their budget from first principles gives 162 dB,
+> so about **12 dB of fade margin they apply and do not itemise**. Applying the same
+> correction to our handheld:
+>
+> | | Our woodland single-hop range |
+> |---|---|
+> | Our model, and Egli unmargined | **~4.0–4.4 km** |
+> | With FFI's implied 12 dB margin | **~1.9 km** |
+>
+> **So there is a genuine 2× uncertainty, and it lives in the link budget — fade margin —
+> not in the propagation exponent.** Only Phase 2 measurement settles it, and this is exactly
+> the "median, 10%, 90%" point in [nbwf-lessons.md §4](nbwf-lessons.md): a single number was
+> never the right way to quote it (**M-03**).
+>
+> ### What survives, and what moved
+>
+> **The protocol conclusions are untouched.** Seven hops at every exponent tried — hop count
+> is bounded by latency, not by range, so it does not move. Per-hop delivery is *better* at
+> the pessimistic exponent (90.7% vs 84.2%) because hops are shorter and stronger. Spatial
+> reuse, convergence, suppression and election are all topology properties and hold whatever
+> creates the topology.
+>
+> **Total reach moves with the range and always did.** 18.2 km at our exponent, 2.3 km at the
+> naive pessimistic one. That was always the exposed figure and [OQ-0019](#oq-0019) said so.
+>
+> **And it caught the same defect class as the gate.** `sim/scenarios/hill.py` had its
+> geometry hardcoded in metres — groups 1200 m apart, crest at 1500 m — chosen when the
+> horizon was 4416 m. At a shorter horizon the valleys cannot reach the hilltop and the
+> scenario silently stops testing relaying. Now derived from measured range, and verified to
+> hold at both exponents: 96.7% at γ 3.0, 97.1% at γ 4.0.
+>
+> `egli_range_m()` is in `sim/manet/radio.py` as a reproducible cross-check rather than a
+> one-off calculation.
+
 ### ~~The vegetation model was wrong by a factor of eight~~
 
 **Closed by correction, 2026-08-21.** Recorded because every reach figure in this project

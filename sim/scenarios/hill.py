@@ -14,12 +14,21 @@ A ridge does it easily.
 
 from ..manet.core import CONFIG
 from ..manet.mobility import Static
-from ..manet.radio import ENVIRONMENTS, LinkBudget
+from ..manet.radio import ENVIRONMENTS, LinkBudget, usable_range_m
 from ..manet.terrain import Ridge
 from ..manet.world import Simulation
 
 WOOD = ENVIRONMENTS["woodland"]
 BUDGET = LinkBudget()
+
+# Same defect the Phase 0 gate had until B-01/B-02: geometry hardcoded in metres against a
+# radio horizon that moves. The groups were 1200 m apart and the crest at 1500 m, chosen when
+# the horizon was 4416 m. At a shorter horizon -- and M-01 shows the plausible range spans
+# 1.9 to 4.4 km -- the valleys cannot reach the hilltop and the scenario silently stops
+# testing relaying at all. Derived from measured range instead, so it moves with the model.
+RANGE_M = usable_range_m(WOOD, BUDGET)
+GROUP_SPACING = 0.55 * RANGE_M     # valley to hilltop: inside one hop, comfortably
+CREST_X = GROUP_SPACING * 1.0      # the ridge sits on the middle group
 
 
 def three_groups(hilltop=True, per_group=4, spread=250.0, slots=1500):
@@ -27,9 +36,10 @@ def three_groups(hilltop=True, per_group=4, spread=250.0, slots=1500):
     Valley — hilltop — valley. With `hilltop=False` the middle group is removed, which
     should sever the network completely.
     """
-    ridge = Ridge(crest_x=1500.0, height_m=80.0, width_m=400.0)
+    ridge = Ridge(crest_x=CREST_X, height_m=80.0, width_m=400.0)
     pos = []
-    centres = [300.0, 1500.0, 2700.0] if hilltop else [300.0, 2700.0]
+    centres = ([0.0, GROUP_SPACING, 2 * GROUP_SPACING] if hilltop
+               else [0.0, 2 * GROUP_SPACING])
     for c in centres:
         for i in range(per_group):
             pos.append((c + (i - per_group / 2) * spread / per_group, (i % 2) * 40.0))
