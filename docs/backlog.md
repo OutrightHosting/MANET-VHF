@@ -95,6 +95,12 @@ been filed rather than left to make the phase feel unfinished:
       | 40 | 89.5% | 90.9% | 93.6% | 94.0% |
       | **48** | **68.2%** | **84.7%** | 84.5% | **91.3%** |
 
+      **Figures superseded by [B-12](#).** The interference-floor fix changed the channel
+      model underneath them; re-measured, the same scenarios now read 95.6 / 93.0 / 66.1 /
+      84.9% worst at 24 / 32 / 40 / 48 radios. The 40-radio case got *worse* (90.9 → 66.1)
+      while everything else improved — worth a look, and not from the eviction policy, since
+      it reads the same with that reverted.
+
       Eviction order: expired first, then asymmetric, then symmetric — never one that
       selected us as its relay while it is still present, since dropping that silently
       breaks its forwarding path. A newcomer must beat the incumbent by
@@ -236,9 +242,28 @@ been filed rather than left to make the phase feel unfinished:
 
       Group 2 and group 4 are both one hop from the talker on identical topology, and group
       4 is marginally *closer*. Group 4 receives 100% and forwards about a third of it.
-      Ruled out: per-radio voice phase — every radio within a group relays the same amount
-      regardless of its own phase, so it is a group-level effect. **Root cause not
-      established.** *Days.*
+
+      **Second attempt, 2026-08-22 — got the mechanism, did not fix the cliff.** Instrumenting
+      the decision itself: group 4 declines **39.4%** of receptions saying it heard the frame
+      from group 3, where group 2 declines 0.4%. `manet_mpr_should_relay` walks the
+      *symmetric* neighbour set looking for somebody the sender cannot reach — and group 4
+      had lost its group-5 neighbours to table eviction:
+
+      | | in range | symmetric | missing from |
+      |---|---|---|---|
+      | radio 12 (group 2) | 17 | 16 | group 1 |
+      | radio 24 (group 4) | 17 | 15 | groups 3 **and 5** |
+      | radio 27 (group 4) | 17 | **10** | groups 3 **and 5** |
+
+      **The frontier neighbour is always the weakest link, so quality-ranked eviction
+      ([B-05](#)) throws it away first — and it is the only reason relaying is worth doing.**
+      That is a real defect in the eviction policy.
+
+      A fix was written (protect any neighbour that is the sole route to somewhere) and
+      **reverted**: it retained 5 of 6 frontier neighbours where before it kept 0–2, and the
+      delivery cliff did not move at all — 100 → 49 either way. So the eviction is *a* cause
+      and not *the* cause. Reverting rather than keeping a change that does not do what it
+      was written for. **Root cause still not established.** *Days.*
 - [ ] **B-14 · The 90% threshold reads as pass/fail and it is not.** "Four groups along a
       valley" reports 8/16 in the conversation with a **worst node of 89.3%** — seven tenths
       of a point under the line, presented as broken speech. The threshold is a hard line
