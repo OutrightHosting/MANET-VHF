@@ -114,6 +114,25 @@ def main():
     results["partition"] = ok_part
     print()
 
+    # ---- question 6: not a criterion, but never untested again ----------------
+    m = gate.multi_talker()
+    print(f"Q6  two people talking at once — {m['hops']}-node chain, talkers "
+          f"{m['talkers'][0]} and {m['talkers'][1]}")
+    print("      speech through = delivery x PTT success, so a talker denied the channel")
+    print("      cannot hide behind a denominator that shrank with it")
+    for ti, v in m["streams"].items():
+        row = " ".join(f"{x*100:3.0f}" for x in v["per_node"])
+        print(f"        n{ti}  PTT {v['ptt']*100:5.1f}%   {row}   mean {v['mean']*100:5.1f}%")
+    if m["worst_ptt"] < 0.99:
+        print(f"      -> a talker is being DENIED THE CHANNEL "
+              f"({m['worst_ptt']*100:.1f}% PTT success) — see B-04b")
+    else:
+        print(f"      -> both talkers get the channel; weaker stream reaches "
+              f"{m['worst_stream']*100:.1f}% of the net")
+    print("      NOT a gate criterion — the brief sets none. Concurrent calls remain")
+    print("      unsolved and the fix is Controlled Barrage Regions (W-04).")
+    print()
+
     # ---- question 4 ----------------------------------------------------------
     print("Q4  beacon overhead")
     print(f"      what beacons say     {CONFIG.beacon_bits} bits each, "

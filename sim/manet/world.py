@@ -71,7 +71,8 @@ class Node:
 
 
 class Simulation:
-    def __init__(self, positions, env, budget=None, talker=0, terrain=None):
+    def __init__(self, positions, env, budget=None, talker=0, terrain=None,
+                 talkers=None):
         self.cfg = CONFIG
         self.channel = Channel(env, budget, terrain)
         # `positions` may be a fixed list or a Mobility. Nodes carry a current position
@@ -80,7 +81,16 @@ class Simulation:
         self.mobility = positions if hasattr(positions, "positions_at") else Static(positions)
         start = self.mobility.positions_at(0)
         self.nodes = [Node(i, i + 1, p) for i, p in enumerate(start)]
+        # ONE voice path, however many people are talking.
+        #
+        # Multiple talkers used to mean a separate _schedule_voice in gate.py, and that
+        # duplicate is precisely why B-04b went unnoticed: it never gained the dedup
+        # registration that stops a talker relaying its own echo, never gained a TTL on the
+        # PDU, never gained PTT accounting, and nothing ever called it anyway. A second
+        # code path that is not exercised is worse than no path at all -- it looks like
+        # coverage.
         self.talker = talker
+        self.talkers = list(talkers) if talkers else [talker]
         self.slot = 0
         self.tx_log = []
         # Where the per-hop slot cost goes. ADR-0002 promises one hop per slot; the gate
@@ -247,14 +257,17 @@ class Simulation:
     def _schedule_voice(self, slot, active):
         if not active:
             return
-        n = self.nodes[self.talker]
+        for ti in self.talkers:
+            self._originate_voice(self.nodes[ti], slot)
+
+    def _originate_voice(self, n, slot):
         # One Codec2 payload per frame, beginning at this radio's own phase.
         if slot % self.cfg.slots_per_frame != self.voice_phase(n):
             return
         # Control slots belong to the topology, not to voice. manet_slot_is_control() has
         # existed in the core since the superframe went in, exported through the bridge and
-        # bound in Python, and nothing ever called it.
-        if is_control_slot(slot):
+        # bound in Python, and nothing ever called it. Off by default -- see CONTROL_SLOTS.
+        if self.CONTROL_SLOTS and is_control_slot(slot):
             return
         # Voice TTL is bounded by the mouth-to-ear budget, not by the field width.
         pdu = Pdu(src=n.addr, prev=n.addr, dst=0xC0, type=VOICE,

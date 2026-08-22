@@ -144,16 +144,28 @@ been filed rather than left to make the phase feel unfinished:
       OQ-0021's near-perfect row matches neither, because it was taken before the
       originator-echo defect was fixed, when a talker relayed its own payload back into the
       network and the spurious copies inflated delivery. OQ-0021 corrected in place.
-- [ ] **B-10 · `multi_talker` is never called.** The harness function that would have caught
-      B-04b exists and nothing invokes it. *Hours.*
-- [x] **B-11 · Hardcoded distances, fixed structurally.** ✅ **Done 2026-08-22.** Four
-      scenarios had pinned distances in metres against a radio horizon that later moved, and
-      every one kept reporting PASS while testing nothing — gate Q1, gate Q5, `hill.py`, and
-      `many_groups` (371 m spacing inside a 4416 m horizon: a cluster wearing a chain
-      costume). Now: `sim/manet/geometry.py` converts *intent* — one hop, three hops, just
-      out of range — into metres against the horizon measured at run time, and
-      `make geometry-check` is part of `make all` and rejects bare distance literals in
-      scenarios. Non-distances stay named or carry a `geometry-exempt:` reason on the line.
+- [x] **B-10 · `multi_talker` was never called.** ✅ **Fixed 2026-08-22 — and it was worse
+      than uncalled.** It carried its own copy of `_schedule_voice`, and that copy had never
+      gained the dedup registration that stops a talker relaying its own echo, never gained
+      a TTL on the PDU, and never gained PTT accounting. Running it would have measured a
+      protocol nobody ships. **An unexercised second code path is worse than none — it looks
+      like coverage, and it is why B-04b went unnoticed.**
+
+      `Simulation` now takes `talkers=`, so there is one voice path however many people are
+      talking, and the duplicate is deleted. Reported as **Q6** in the gate — not a
+      criterion, since the brief sets none, but never untested again. It reports
+      `speech_through`, so a talker denied the channel cannot hide behind a denominator that
+      shrank with it.
+
+      Current reading, 7-node chain, talkers 0 and 3:
+
+      ```
+      n0  PTT 100.0%   100  98   0   0   0   0   0   mean 28.3%
+      n3  PTT 100.0%     2   2   2 100  97  95  94   mean 56.0%
+      ```
+
+      Both get the channel — B-04b's fix holds — and **neither stream crosses the other**,
+      which is [OQ-0021](open-questions.md#oq-0021) unchanged. **W-04** is the fix.
 - [ ] **M-03 · Quote ranges as distributions, not points.**
 - [ ] **M-05 · Report recovery as time-to-voice, not time-to-tables.** B-06's alarming
       number measured neighbour-table convergence; voice recovers immediately because
