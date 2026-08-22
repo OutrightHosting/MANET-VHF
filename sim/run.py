@@ -100,13 +100,20 @@ def main():
         print(f"      PRECONDITION FAILED  front still saw "
               f"{p['worst_reach_while_apart']}/{p['nodes']} while apart — no partition")
     seen = set()
-    for t, phase, ra, rb, ok in p["trace"]:
+    for t, phase, ra, rb, ok, hearing, nfar in p["trace"]:
         if phase not in seen:
             seen.add(phase)
             print(f"        t={t:6.0f}s  {phase:12s} reachable from front {ra:2d}/12, "
-                  f"from back {rb:2d}/12")
+                  f"from back {rb:2d}/12, far half hearing {hearing:2d}/{nfar}")
+    # M-05: lead with the service figure, not the table figure.
+    if p["voice_back_s"] is not None:
+        print(f"      VOICE back across the break {p['voice_back_s']:.0f} s after contact "
+              f"resumed — the number that means it works")
+    else:
+        print("      voice did NOT return across the break")
     if p["heal_s"] is not None:
-        print(f"      fully reconverged {p['heal_s']:.0f} s after contact resumed")
+        print(f"      tables fully reconverged {p['heal_s']:.0f} s after contact resumed "
+              f"— barrage floods, so voice does not wait for this")
     elif p["heal_partial_s"] is not None:
         print(f"      reconverged to {p['final_reach']}/{p['nodes']} in "
               f"{p['heal_partial_s']:.0f} s — one radio never regained a two-way link")
@@ -133,6 +140,24 @@ def main():
               f"{m['worst_stream']*100:.1f}% of the net")
     print("      NOT a gate criterion — the brief sets none. Concurrent calls remain")
     print("      unsolved and the fix is Controlled Barrage Regions (W-04).")
+    print()
+
+    # ---- question 7: the geometry no criterion contains -----------------------
+    dc = gate.dense_cover()
+    print(f"Q7  short hops — 12 leaders in cover with a {dc['horizon_m']:.0f} m horizon, "
+          f"TTL {dc['ttl']}")
+    print("      every other question here is the repeater triangle: long hops, terrain")
+    print("      doing the blocking. This is the one with short hops in it.")
+    print("        spread    connected   hearing voice")
+    for r in dc["rows"]:
+        flag = "" if r["hearing"] == r["nodes"] else "   <- group split"
+        print(f"        {r['spread_m']/1000:4.1f} km      {r['reachable']:2}/{r['nodes']}"
+              f"        {r['hearing']:2}/{r['nodes']}{flag}")
+    print(f"      -> the group holds together up to {dc['safe_spread_m']/1000:.1f} km "
+          f"in this cover")
+    print("      Radios stay CONNECTED throughout; voice stops because the hop budget runs")
+    print("      out before the group does. Not fixable by raising TTL — seven hops already")
+    print("      costs 460 ms of 500. NOT a gate criterion; the brief sets none. OQ-0032.")
     print()
 
     # ---- question 4 ----------------------------------------------------------

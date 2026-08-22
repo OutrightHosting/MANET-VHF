@@ -59,6 +59,13 @@ been filed rather than left to make the phase feel unfinished:
   → **M-01**.
 - **Everything rests on one unverified assumption** about concurrent identical copies. → **T-01**,
   and it is the first thing the bench does.
+- **Every criterion is the repeater triangle.** Long hops, terrain doing the blocking, few
+  relays. In dense woodland the links shorten, the same ground costs more hops, and the hop
+  budget runs out before the group does — twelve leaders over **2 km** of thick cover have
+  **12/12 radios connected and 8/12 hearing voice**. Not a bug, and not fixable by raising
+  the TTL: seven hops already spends 460 ms of a 500 ms allowance. →
+  **[OQ-0032](open-questions.md#oq-0032)**, **M-07**. *The criteria did not catch this
+  because they could not — none of them has short hops in it.*
 
 ## Phase 0 — remaining, and none of it blocks Phase 1
 
@@ -196,15 +203,17 @@ been filed rather than left to make the phase feel unfinished:
       the parameter (σ = 7.0 dB); the channel is still deterministic, so every link at a
       given distance behaves identically and marginal links never flicker. Would need a seed
       to stay reproducible, and would change every delivery figure. *Days, Phase 1+.*
-- [ ] **M-07 · Gate the dense-cover case.** [OQ-0032](open-questions.md#oq-0032): twelve
-      leaders over 2 km of thick woodland have 12/12 radios connected and 8/12 hearing
-      voice, because the hop budget runs out before the group does. Every gate scenario has
-      long hops, so none of them would notice. **Done when:** the gate carries a short-hop
-      case and reports the spread at which the group splits. *Hours.*
-- [ ] **M-05 · Report recovery as time-to-voice, not time-to-tables.** B-06's alarming
-      number measured neighbour-table convergence; voice recovers immediately because
-      barrage floods rather than routing. The gate's Q5 reports a table figure. *Hours.* FFI give median, 10% and 90% at
-      roughly 1:3. We quote single numbers. *Half a day.*
+- [x] **M-07 · Gate the dense-cover case.** ✅ **Done 2026-08-22.** Gate **Q7** — twelve
+      leaders in cover with a 350 m horizon, sweeping the spread and reporting where the
+      group splits. Currently: holds together to **1.5 km**, splits at 2 km with 12/12
+      connected and 8/12 hearing. Reported, not gated — the brief sets no criterion for it,
+      and inventing one would be picking a number rather than measuring one.
+- [x] **M-05 · Report recovery as time-to-voice, not time-to-tables.** ✅ **Done 2026-08-22.**
+      Q5 now tracks whether the far half is *receiving voice*, and leads with that figure.
+      It also independently confirms the partition — the far half reads 0/6 while apart,
+      which is a second check on the precondition B-02 added. At twelve nodes both are 5 s;
+      the two diverge at scale, which is what made B-06 read as "7.6× slower" when the
+      service had already recovered.
 
 ## Phase 0 — done
 
@@ -316,9 +325,24 @@ been filed rather than left to make the phase feel unfinished:
 
 ---
 
-## If only one thing happens next
+## Phase 0 is closed
+
+All six criteria met, and the four things they could not see are recorded rather than
+buried: concurrent calls (**W-04**), the disputed exponent (**M-01**, resolved), the
+unverified concurrency assumption (**T-01**), and short-hop coverage
+(**[OQ-0032](open-questions.md#oq-0032)**). The gate reports seven questions, two of them —
+concurrent talkers and dense cover — precisely because nothing required them and both hid a
+failure.
+
+**Next is Phase 1, and it starts with three decisions that are not mine to make:** bench
+part, hop-count-versus-range strategy, oscillator. Everything in the bench queue stalls on
+them.
+
+<details><summary>superseded — the Phase 0 closing note</summary>
 
 **M-01 — re-run at γ = 4.** It is the last Phase 0 item that can change a conclusion, it costs
 nothing but CPU, and every reach figure in the project sits on an exponent that the only
 comparable published work says is optimistic. Then Phase 0 closes and the three decisions in
 Phase 1 are what unblock everything else.
+
+</details>

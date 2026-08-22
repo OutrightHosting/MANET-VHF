@@ -44,6 +44,10 @@ DISPERSAL_HOPS = 6
 # distance, so it is named rather than derived. cluster_m in SplinterRejoin.
 CLUSTER_JITTER_M = 150.0
 
+# Dense-cover case (OQ-0032). A target horizon and the spreads to sweep it over.
+DENSE_HORIZON_M = 350.0        # geometry-exempt: target horizon, not a spacing
+DENSE_SPREADS_M = (500.0, 1000.0, 1500.0, 2000.0, 3000.0)   # geometry-exempt: sweep axis
+
 OUT_S, AWAY_S, BACK_S = 90.0, 120.0, 90.0  # geometry-exempt: seconds, not metres
 
 
@@ -148,15 +152,22 @@ def partition(n=12, samples=60, separation_m=None):
 
     total = int(400.0 / (CONFIG.slot_us / 1e6))
     step = max(total // samples, 1)
+    # M-05: also track whether the FAR HALF is receiving voice, not only whether the
+    # tables have caught up. Barrage floods, so it does not need converged tables to
+    # deliver -- reporting table convergence alone made recovery look far worse than the
+    # service actually was, which is how B-06 arrived as "7.6x slower".
+    far = list(range(n // 2, n))
     trace = []
     done = 0
     while done < total:
         chunk = min(step, total - done)
+        before = {i: len(sim.nodes[i].heard_payloads) for i in far}
         sim.run(chunk, voice_from=settle, voice_to=settle + total)
         done += chunk
         t = _secs(sim.slot) - _secs(settle)
+        hearing = sum(1 for i in far if len(sim.nodes[i].heard_payloads) > before[i])
         trace.append((t, mob.phase_at(t), sim.reachable_from(0),
-                      sim.reachable_from(n - 1), sim.converged()))
+                      sim.reachable_from(n - 1), sim.converged(), hearing, len(far)))
 
     # how long after the halves are back in contact before everything reconverges
     rejoin_t = OUT_S + AWAY_S + BACK_S
@@ -166,11 +177,18 @@ def partition(n=12, samples=60, separation_m=None):
     # confirmed two-way link. See OQ-0009.
     # PRECONDITION: were the halves ever actually out of contact? If the front could still
     # see all twelve while "apart", nothing was partitioned and the heal time is fiction.
-    apart_reach = [ra for t, phase, ra, _rb, _ok in trace if phase == "apart"]
+    apart_reach = [ra for t, phase, ra, _rb, _ok, _h, _n in trace if phase == "apart"]
     truly_split = bool(apart_reach) and max(apart_reach) <= n // 2
 
+    # Time until the far half is hearing voice again -- the number that means "the
+    # network is working", as against "the tables agree".
+    voice_back = None
+    for t, phase, _ra, _rb, _ok, hearing, nfar in trace:
+        if t >= rejoin_t and hearing >= nfar and voice_back is None:
+            voice_back = t - rejoin_t
+
     heal, heal_partial, final_reach = None, None, 0
-    for t, phase, reach_a, _reach_b, ok in trace:
+    for t, phase, reach_a, _reach_b, ok, _hearing, _nfar in trace:
         if t < rejoin_t:
             continue
         final_reach = reach_a
@@ -180,7 +198,7 @@ def partition(n=12, samples=60, separation_m=None):
             heal = t - rejoin_t
     return {"trace": trace, "heal_s": heal, "heal_partial_s": heal_partial,
             "final_reach": final_reach, "rejoin_at_s": rejoin_t, "nodes": n,
-            "truly_split": truly_split,
+            "truly_split": truly_split, "voice_back_s": voice_back,
             "worst_reach_while_apart": max(apart_reach) if apart_reach else n,
             "separation_m": separation_m, "range_m": RANGE_M}
 
@@ -195,6 +213,35 @@ def latency(hops=4):
     sim.run(1200, voice_from=settle)
     lat = sim.latency_slots(sim.nodes[0].addr)
     return {i: (v, v * CONFIG.slot_us / 1000.0) for i, v in sorted(lat.items())}
+
+
+def dense_cover(n=12, slots=3000):
+    """
+    Short hops. The one geometry none of the brief's criteria contains.
+
+    Every other scenario here is the repeater triangle -- long hops, terrain doing the
+    blocking. In thick woodland the links shorten, the same ground costs more hops, and
+    MANET_VOICE_TTL runs out before the group does. The radios stay connected to each
+    other the whole time; voice simply cannot cross the group.
+
+    Reports the spread at which the group splits, because "keep everyone inside N metres in
+    thick cover" is an instruction somebody can follow, and discovering it in a forest is
+    not. OQ-0032.
+    """
+    from ..scenarios.dense_cover import env_for_horizon, line_of_leaders
+
+    env = env_for_horizon(DENSE_HORIZON_M)
+    out = []
+    for spread in DENSE_SPREADS_M:
+        sim, d = line_of_leaders(n, spread, env, slots=slots)
+        heard = sum(1 for v in d.values() if v > 0.5)
+        out.append({"spread_m": spread, "reachable": sim.reachable_from(0),
+                    "hearing": heard, "nodes": n, "worst": min(d.values())})
+    intact = [r for r in out if r["hearing"] == n]
+    return {"horizon_m": DENSE_HORIZON_M,
+            "rows": out,
+            "safe_spread_m": max((r["spread_m"] for r in intact), default=0.0),
+            "ttl": CONFIG.voice_ttl}
 
 
 def multi_talker(hops=7, talkers=(0, 3), slots=6000):

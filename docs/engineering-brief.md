@@ -272,6 +272,16 @@ station."
 **Phase 0:** protocol converges in simulation with 12 mobile nodes; cluster case produces zero
 relaying; 5-hop chain resolves within 300 ms.
 
+> **All three met 2026-08-22** — against a gate that can now fail, which for a period it
+> could not ([backlog B-01/B-02](backlog.md)).
+>
+> **But all three describe the same geometry**: a group spread over kilometres with long
+> hops between them. None of them has short hops in it, so none could detect that in dense
+> woodland the hop budget runs out before the group does — twelve leaders over 2 km of thick
+> cover, all twelve radios connected, four of them unable to hear anything
+> ([OQ-0032](open-questions.md#oq-0032)). A criterion set that cannot fail in a whole class
+> of terrain is worth knowing about before Phase 2 walks into it.
+
 **Phase 1:** intelligible Codec2 3200 voice across three hops on the bench, with measured slot
 timing within guard intervals.
 
