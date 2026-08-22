@@ -264,6 +264,27 @@ been filed rather than left to make the phase feel unfinished:
       until the asymmetry vanished, which isolated it to *which* radio in the middle group
       was speaking.
 
+- [ ] **B-15 · Per-hop loss scales with how many radios stand at each position.** Same seven
+      positions in a line, only the number of radios at each changes:
+
+      | radios per position | total | loss per hop |
+      |---|---|---|
+      | 1 | 7 | **1.2 pts** |
+      | 2 | 14 | 2.1 pts |
+      | 3 | 21 | 2.7 pts |
+      | 6 | 42 | **3.4 pts** |
+
+      **Backwards.** Six radios standing together should be more robust than one, not three
+      times worse per hop. It is why "seven groups of six, end to end" reads 12/42 while the
+      same seven positions with one radio each would hold above 90% the whole way.
+
+      Ruled out by measurement: **reception** (received / deaf / collided within 1.6 points
+      across group sizes — 42.9% vs 41.3% received), **within-group variation** (spread is
+      *exactly zero*; all six radios in a group get identical delivery), and **coverage
+      suppression** (disabled at the class level, results unchanged to the decimal).
+
+      Root cause not established. *Days.*
+
 ## Phase 0 — done
 
 - [x] **B-01 · Gate Q1 never went multi-hop.** Stretch derived from measured range: 15.5 km,
