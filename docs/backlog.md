@@ -196,6 +196,11 @@ been filed rather than left to make the phase feel unfinished:
       the parameter (σ = 7.0 dB); the channel is still deterministic, so every link at a
       given distance behaves identically and marginal links never flicker. Would need a seed
       to stay reproducible, and would change every delivery figure. *Days, Phase 1+.*
+- [ ] **M-07 · Gate the dense-cover case.** [OQ-0032](open-questions.md#oq-0032): twelve
+      leaders over 2 km of thick woodland have 12/12 radios connected and 8/12 hearing
+      voice, because the hop budget runs out before the group does. Every gate scenario has
+      long hops, so none of them would notice. **Done when:** the gate carries a short-hop
+      case and reports the spread at which the group splits. *Hours.*
 - [ ] **M-05 · Report recovery as time-to-voice, not time-to-tables.** B-06's alarming
       number measured neighbour-table convergence; voice recovers immediately because
       barrage floods rather than routing. The gate's Q5 reports a table figure. *Hours.* FFI give median, 10% and 90% at

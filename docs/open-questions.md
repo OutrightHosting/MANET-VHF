@@ -20,6 +20,7 @@ yet in any of them.
 | [OQ-0029](#oq-0029) | FFI deferred automatic relaying as possibly infeasible in 25 kHz | Phase 0 | Whether the core premise holds | **Open — risk register** |
 | [OQ-0030](#oq-0030) | Are we optimising the wrong thing — hop count instead of range per hop? | **Now, it is a strategy question** | Direction of the whole MAC effort | **Open** |
 | [OQ-0031](#oq-0031) | GPS holdover and network time transfer | Phase 0 design, Phase 1 measure | Whether losing GPS loses the network | **Open** |
+| [OQ-0032](#oq-0032) | Dense cover spends the hop budget before the group ends | **Phase 0** | Coverage in woodland. 12/12 connected, 8/12 hearing | **Open** |
 | [OQ-0002](#oq-0002) | The slot budget does not close — structurally, once itemised | **Phase 0** | Everything downstream of the MAC | Open |
 | [OQ-0003](#oq-0003) | Synchronisation: GPS-disciplined or network-derived | Phase 0 (design), Phase 2 (proof) | Guard interval size, canopy/indoor operation | Open |
 | [OQ-0004](#oq-0004) | Beacon interval, and where control traffic lives in the slot structure | **Phase 0** | Channel overhead, reconvergence time | Open |
@@ -1656,3 +1657,57 @@ reasons that have nothing to do with GPS outages.
 the reference stays good with no correction; [OQ-0003](#oq-0003) and OQ-0024 are about
 whether the 40 MHz reference is steered by GPS at all. The same part answers both, which is
 why they should be decided together.
+
+## OQ-0032
+### Dense cover spends the hop budget before the group ends
+
+Every scenario in this project is a variation on the repeater triangle: groups spread over
+kilometres, terrain doing the blocking, hops long and few. That is the case the product was
+conceived for and it works. **It is not the only case, and the gate is blind to the other
+one.**
+
+In thick woodland the links shorten, so the same group needs *more* hops to span the *same*
+ground, and `MANET_VOICE_TTL` runs out before the group does.
+
+Twelve leaders in a line, worst-case delivery, TTL 7:
+
+| Cover | 1 hop | 0.5 km | 1 km | 2 km | 3 km | 5 km |
+|---|---|---|---|---|---|---|
+| light — our default | 4416 m | 98% | 99% | 99% | 99% | 99% |
+| moderate | 1500 m | 99% | 99% | 99% | 98% | 95% |
+| dense | 700 m | 99% | 99% | 96% | 92% | **0%** |
+| very dense | 350 m | 99% | 96% | **0%** | **0%** | **0%** |
+
+**The corner that matters is twelve leaders over 2 km of very dense cover** — an entirely
+ordinary way for a group to walk a forest trail:
+
+```
+radios reachable through the mesh : 12/12
+radios actually receiving voice   :  8/12
+```
+
+**The radio path is intact end to end.** Every leader is connected to the next. Voice stops
+anyway, at radio 7, because the hop budget is exhausted before the group is. The last four
+people are unreachable and nothing in the network is broken.
+
+### Why it cannot be fixed by raising the TTL
+
+Seven hops already costs 460 ms of the 500 ms mouth-to-ear allowance
+([OQ-0022](#oq-0022)). There is no slack. **Dense cover converts a latency limit into a
+coverage limit**, and the conversion rate is unfavourable: at a 350 m horizon the seven hops
+buy 2.4 km of ground, where at our default they buy 30 km.
+
+### What would actually help
+
+- **A shorter frame.** At 110 ms — which 22.4 kbps with Codec2 2400 buys, both bench
+  questions ([OQ-0001](#oq-0001)) — the same latency allowance holds **twelve** hops rather
+  than seven. In very dense cover that is 4.2 km instead of 2.4 km. This is the strongest
+  argument yet for the bit-rate work, and it is not the argument that was being made for it.
+- **Knowing the number.** If the answer is "in thick woodland keep the group inside 2 km",
+  that is an operational instruction somebody can actually follow — but only if it is
+  measured rather than discovered.
+- **Not [OQ-0030](#oq-0030)'s fewer-longer-hops strategy**, which helps in the open and does
+  nothing here: in dense cover there are no long hops available to take.
+
+`sim/scenarios/dense_cover.py`. Raised by the user, from the observation that the triangle
+is not the only geometry a group can be in.
