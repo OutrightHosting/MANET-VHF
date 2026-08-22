@@ -279,8 +279,10 @@ static void test_chain_advances_one_hop_per_slot(void)
     }
 
     /* Nine hops in nine voice slots, plus the reserved slots stepped over. At one slot in
-     * four that is two of them across nine hops. Waiting for the next frame would have cost
-     * nine frames instead, and the product would not work. */
+     * eight (MANET_SIGNAL_SLOT_PERIOD) that is one of them across nine hops; the count is
+     * taken from manet_slot_is_control() rather than assumed, so this holds at any period.
+     * Waiting for the next frame instead would have cost nine frames, and the product would
+     * not work. */
     CHECK_EQ(slot - first, (uint64_t)(HOPS - 1) + (uint64_t)skipped);
     {
         manet_slot_pos_t a, b;

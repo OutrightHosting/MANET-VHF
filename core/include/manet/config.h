@@ -235,8 +235,8 @@
 #endif
 
 /*
- * Beacon interval, in frames. 33 frames is ~2 s at 60 ms, which is OLSR's default HELLO
- * interval — inherited, NOT derived, and almost certainly wrong for a link three orders
+ * Beacon interval, in frames. 33 frames is 5.28 s at the live 160 ms frame (132 slots).
+ * The 33 was taken from OLSR's default HELLO interval — inherited, NOT derived, and almost certainly wrong for a link three orders
  * of magnitude slower than OLSR was designed for. This is OQ-0004 and Phase 0 is meant
  * to sweep it.
  */
@@ -284,18 +284,21 @@
 #endif
 
 /*
- * The superframe: a slower layer above the 60 ms voice frame, where slot ownership lives.
+ * The superframe: a slower layer above the 160 ms voice frame, where slot ownership lives.
  *
  * Ownership cannot live inside the voice frame. A two-hop neighbourhood of eleven radios
  * needs at least twelve distinct contention contexts and a four-slot frame offers four.
  * Every earlier attempt to reserve control airtime inside the frame failed for that
  * reason, and the failures looked like tuning problems rather than a sizing error.
  *
- * One slot per superframe is control-only and voice never uses it. At eight frames that
- * is one slot in thirty-two — about 3% of airtime, taken from the ~49% a voice-carrying
- * chain leaves idle. Which radio may use a given control slot is settled by NAMA
- * election, so twelve radios share two or three control slots per beacon interval without
- * ever colliding.
+ * SUPERSEDED AS A RESERVATION RATE by MANET_SIGNAL_SLOT_PERIOD at line 350 of this file,
+ * which is 8 — one slot in eight, 12.5% of airtime, not one in thirty-two at 3%. B-15
+ * established that 3% was far too little: beacons could not fit and went out over live
+ * voice instead. Do not size the reservation from this block; see ADR-0014.
+ *
+ * The superframe itself is still live and still owns the contention contexts. Which radio
+ * may use a given signalling slot is settled by NAMA election, so twelve radios share the
+ * slots in a beacon interval without ever colliding.
  */
 #ifndef MANET_SUPERFRAME_FRAMES
 #define MANET_SUPERFRAME_FRAMES 8u
@@ -371,8 +374,12 @@
  *
  * ADR-0011 removes the election for voice relays. A hop now costs exactly one slot, and the
  * measured chain is slightly better than the arithmetic because the first hop is direct and
- * free: 7 hops = 6 slots = 240 ms, mouth-to-ear 460 ms against 500. Eight hops is the edge
- * at exactly 500 and is not taken.
+ * free: 7 hops = 6 slots = 240 ms, mouth-to-ear 460 ms against 500.
+ *
+ * ADR-0014 adds one step-over: voice skips each reserved signalling slot it meets, so seven
+ * hops costs 6.5 slots — 260 ms of slot time and ~480 ms mouth-to-ear. Still inside 500, and
+ * the signalling period was chosen by that budget rather than by delivery, which is 99.93%
+ * at every period from 4 to 8.
  *
  * The remaining lever is the frame. At 110 ms — which 22.4 kbps with Codec2 2400 buys, both
  * bench questions (OQ-0001) — the same one-slot hop gives TWELVE.

@@ -237,7 +237,14 @@ class Channel:
         self.terrain = terrain or Flat()
         self._loss_cache = {}
 
-    # Off by default until the bench says otherwise — see OQ-0028.
+    # ON. Identical copies transmitted in the same slot are excluded from each other's
+    # interference sum rather than colliding — the barrage premise (ADR-0011), and the
+    # single largest unverified assumption in the project. It is what buys one hop per slot
+    # instead of 6.32, and B-15 confirmed the flood never jams itself: zero voice-against-
+    # voice collisions at every density measured. The bench question is whether real
+    # hardware behaves this way at our symbol rate — OQ-0028, and it is not settled.
+    # Note this claims NO combining gain: the strongest copy is decoded and the others are
+    # merely not counted against it, so N co-located radios receive what one receives.
     CONCURRENT_IDENTICAL = True
 
     def rx_dbm(self, distance_m):

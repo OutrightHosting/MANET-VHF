@@ -1,7 +1,7 @@
 # Narrowband Voice MANET — Engineering Brief
 
 **Project:** Multi-hop mesh voice radio for licensed UK VHF Business Radio spectrum
-**Status:** Pre-development. Nothing built. This document defines the target.
+**Status:** Phase 0. A C protocol core and a Python simulation harness exist and pass the gate criteria; the radio hardware does not. This document defines the target, and parts of it have been overtaken — see [how-it-works.md](how-it-works.md) for what the system actually does today.
 **Audience:** Development agent / engineer starting from zero
 
 > **Amended by [Addendum 01 — Packet Architecture and Gateway Nodes](addendum-01-packet-architecture.md).**
@@ -66,6 +66,17 @@ These are non-negotiable and derived from operational reality, not preference.
 | 8 | Simple operation | Volunteers, shared kit, minimal training |
 
 ## 4. System design — decided
+
+> **The figures in this section are stale and the relaying description is wrong.** It states a
+> 60 ms frame and 15 ms slots (live: **160 ms**, **40 ms**), ~4.7 kbps per slot (there is no
+> reduced per-slot rate — the modem runs at full 19.2 kbps during its burst), ~47% FEC (live:
+> **16%**), 15 hops at 300 ms (live: **7 hops at ~480 ms**), and MPR-selected relaying for voice
+> (replaced by barrage relaying in [ADR-0011](decisions/0011-barrage-relaying.md)).
+>
+> The *decisions* in this section are almost all live — it is the numbers and the relaying
+> mechanism that moved. For a current account see **[how-it-works.md](how-it-works.md)**, and
+> for the authoritative values see `core/include/manet/config.h`.
+
 
 ### 4.1 RF layer
 

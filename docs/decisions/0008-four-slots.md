@@ -71,7 +71,7 @@ any error correction.
 ## Consequences
 
 - The MAC frame structure is settled: **160 ms, four slots of 40 ms**, one hop per slot.
-  (Recorded here as 60 ms / 15 ms; corrected by [ADR-0009](0009-frame-duration.md) and then by
+  (Recorded here as 60 ms / 15 ms; corrected by [ADR-0009](0009-frame-structure-with-real-preamble.md) and then by
   the preamble re-derivation in [docs/preamble-budget.md](../preamble-budget.md).)
 - **The slot budget is not settled.** Four slots leaves **94 bits for FEC, 16%**, where DMR
   runs 47%. Better than the 2% recorded when this ADR was written, still short.

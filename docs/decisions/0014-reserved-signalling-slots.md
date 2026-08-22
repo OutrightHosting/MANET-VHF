@@ -4,7 +4,7 @@
 **Supersedes:** the "provided but deliberately not used" disposition of
 `manet_slot_is_control()` recorded in [slot.h](../../core/include/manet/slot.h) and the
 `CONTROL_SLOTS = False` decision in the simulator.
-**Related:** [ADR-0002](0002-slot-pipelining.md) (one hop per slot),
+**Related:** [ADR-0002](0002-tdma-slot-pipelining.md) (one hop per slot),
 [ADR-0011](0011-barrage-relaying.md) (barrage relaying), B-15 and B-16 in
 [backlog.md](../backlog.md), [nbwf-lessons.md](../nbwf-lessons.md) §5.
 

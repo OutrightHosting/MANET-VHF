@@ -197,8 +197,8 @@ class Simulation:
             # an earlier decision, and the reason it was right then and wrong now is the
             # supply: at one control slot per superframe there were far fewer slots than
             # radios, so waiting for one starved beaconing outright and pushed recovery
-            # from 40 s to 112 s. At MANET_SIGNAL_SLOT_PERIOD there is one every four
-            # slots, which is more beacon opportunities than the old scheme had while
+            # from 40 s to 112 s. At MANET_SIGNAL_SLOT_PERIOD there is one every eight
+            # slots -- four times the supply the old superframe scheme offered, while
             # taking none of them on top of voice.
             #
             # This is the other half of B-15. Reserving the slot is what gives beacons

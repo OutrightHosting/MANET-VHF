@@ -401,6 +401,27 @@ One item open: **M-06**.
       through a soft boundary and the cards make it look categorical. **Done when:** the
       atlas shows the distribution rather than a binary, or the flag names the actual worst
       figure so 89.3% is not confused with 40%.
+- [ ] **H-08 · The documentation set contradicts the code in 86 places.** Found by audit while
+      writing [how-it-works.md](how-it-works.md). Fixed already: the stale comments inside
+      `config.h` (beacon interval, superframe reservation rate, hop latency), the
+      `CONCURRENT_IDENTICAL` comment that said "off by default" above a flag that is on, two
+      comments introduced with ADR-0014 that said one slot in four, the ADR index's wrong
+      ADR-0009 row and missing ADR-0014 row, three broken ADR links, and warning banners on
+      `engineering-brief.md`.
+
+      **Still outstanding**, and left deliberately because ADRs are historical records that get
+      annotated rather than rewritten: the 60 ms / 15 ms frame figures throughout ADR-0002,
+      0004, 0007, 0008, 0009, the addendum and the literature review; the MPR-relays-voice
+      description in ADR-0003, the addendum and feature-set; five mutually inconsistent hop-count
+      answers across the open-questions register; and OQ-0002's sweep table, which does not
+      contain the configuration that was actually built.
+
+      **The root cause is a process failure, not a typo.** ADR-0009's reversal trigger fired when
+      the preamble was re-derived, the frame moved, and no superseding ADR was written — so the
+      only correct statement of the live frame in `docs/decisions/` sits inside ADR-0008, which
+      is marked *Superseded*. The decision log's own promise is that a fired trigger produces a
+      successor. **Writing that missing ADR is the first task here.**
+
 - [ ] **H-01 · Rewrite the OQ-0012 entry** — stale in both directions per the Phase 0 audit.
 - [ ] **H-02 · Correct OQ-0004's findings** and re-derive the beacon interval for the 160 ms
       frame. 33 frames was chosen against a 60 ms frame and silently changed meaning.
