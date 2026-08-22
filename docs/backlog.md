@@ -368,9 +368,28 @@ One item open: **M-06**.
         combining. Needs a physical argument that a receiver locks to a copy despite 14.5% of
         the burst differing — which is exactly what nobody has evidence for.
 
-      **First step is free:** make `_payload_key()` honest — key on the actual transmitted
-      bits — and re-run the atlas. That measures how much of the current delivery figure
-      depends on the defect. *Blocks a meaningful OQ-0028 bench test.*
+      **MEASURED 2026-08-22.** `_payload_key()` now keys on every header field that actually
+      goes on air (`Channel.COMBINE_KEY = "wire"`, with `"payload"` kept to reproduce the old
+      behaviour). Re-running all 33 atlas scenarios:
+
+      | | optimistic | honest |
+      |---|---|---|
+      | radios in the conversation | 775/800 (96.9%) | **483/800 (60.4%)** |
+
+      **292 radios lost, 38%, across 16 of 33 scenarios.** The seven-position chain goes
+      99.93% at every density to 99.93% at one radio per position and **0.00% at three or
+      more.** Worst cards: 60 radios over 24 km 60/60 → **1/60**; 100 radios over 38 km
+      100/100 → 17/100; seven groups of six 42/42 → 12/42.
+
+      **What is untouched says the same thing from the other side.** Dense clusters hold
+      100/100 because everyone is in direct range and nothing relays. Lines hold because one
+      radio per position means relays are sequential, never concurrent. The damage lands
+      exactly where two or more radios relay the same payload in the same slot — which is
+      barrage doing its job.
+
+      This is not a modelling refinement. **The barrage design does not work with the current
+      wire format**, and every figure above one radio per position was the simulator crediting
+      a mechanism the frame forbids. *Blocks a meaningful OQ-0028 bench test and D-01.*
 
 ## Phase 0 — done
 

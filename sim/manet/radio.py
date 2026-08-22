@@ -208,11 +208,31 @@ def _with_margin(budget, extra_loss_db):
         budget, sensitivity_dbm=budget.sensitivity_dbm + extra_loss_db)
 
 
+# Which transmissions count as "the same waveform" for combining purposes.
+#
+#   "wire"    -- every header field that actually goes on air. HONEST, and the default.
+#   "payload" -- origin and sequence only, ignoring which relay is carrying it. This is
+#                what the model used to do, and it credits combining the wire format
+#                cannot produce. Kept so the two can be measured against each other.
+#
+# The difference is B-17. manet_sched_relay stamps the relay's own address into `prev` at
+# every hop (core/src/slot.c:156), so two relays firing the same payload in the same slot
+# differ by 8 header bits plus the 94 FEC bits computed over the frame -- 102 of 704
+# on-air bits. Halford & Chugg (ITA 2010, III.B): "node-specific packet transformation
+# must be suppressed: protocol headers can be modified only in a manner that is
+# hop-dependent." TTL qualifies -- every relay at a given hop decrements it identically.
+# `prev` does not.
+COMBINE_KEY = "wire"
+
+
 def _payload_key(payload):
-    """What makes two transmissions 'the same frame'. Origin and sequence identify a
-    payload uniquely across the whole network; the relay carrying it is irrelevant."""
+    """What makes two transmissions the same waveform on air."""
     pdu = payload[0]
-    return (pdu.src, pdu.seq, pdu.type)
+    if COMBINE_KEY == "payload":
+        return (pdu.src, pdu.seq, pdu.type)
+    # Everything the modulator actually sends. Two relays of one payload differ in `prev`,
+    # so under this key they do NOT combine -- which is the truth about the current frame.
+    return (pdu.src, pdu.dst, pdu.type, pdu.seq, pdu.ttl, pdu.prio, pdu.prev)
 
 
 def _dbm_to_mw(dbm):
