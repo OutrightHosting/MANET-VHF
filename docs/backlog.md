@@ -162,11 +162,21 @@ an instrument that can now report a failure.
 - [ ] **W-03 · Network merge tie-break.** Two islands each reach an internally consistent
       time consensus; when they meet one must yield deterministically. Same problem as
       [OQ-0015](open-questions.md#oq-0015) from the other side. *Days.*
+- [ ] **W-06b · Add `prevSender` to the header — 8 bits, and it buys a routing protocol.**
+      [VINE](gotenna-vine.md) builds routing state purely by inspecting data-packet headers,
+      and we already carry every field it needs except one. `prev` (added for
+      [OQ-0018](open-questions.md#oq-0018)) is VINE's `sender`; `costFromSource` is derivable
+      from `ttl`. **The whole additional cost is one 8-bit field**, taking FEC from 16% to
+      14.6%. **Done when:** the header carries it and gradients are built from received
+      frames in the C core. *Days. Prerequisite for W-04.*
 - [ ] **W-04 · Controlled Barrage Regions.** The literature review's answer (§109) to
       concurrent calls: flood only within the corridor where d(s)+d(d) equals the path
       length. Fixes **B-07**, reduces airtime (the only remaining lever on
       [OQ-0026](open-questions.md#oq-0026)), and is what finally uses **B-09**'s `dst`.
       *Weeks. The single highest-value unbuilt item.*
+      **Now has a published mechanism under it** — VINE's cost gradients *are* the hop counts
+      CBR needs, obtained by header inspection rather than by flooding them. Do **W-06b**
+      first. [gotenna-vine.md §2](gotenna-vine.md).
 - [ ] **W-05 · Late entry** — [OQ-0015](open-questions.md#oq-0015). Signalling half is already
       done; the rest is not. *Days.*
 - [ ] **W-06 · Confirmed calls** — [OQ-0016](open-questions.md#oq-0016). Nothing built,
@@ -200,9 +210,10 @@ an instrument that can now report a failure.
 - [ ] **H-02 · Correct OQ-0004's findings** and re-derive the beacon interval for the 160 ms
       frame. 33 frames was chosen against a 60 ms frame and silently changed meaning.
 - [ ] **H-03 · Correct OQ-0017's three unsupported statements.**
-- [ ] **H-04 · Chase NBWF's fate.** Was automatic relaying ever added to the STANAG? Was NBWF
-      fielded? Strongest available evidence either way on
-      [OQ-0029](open-questions.md#oq-0029).
+- [~] **H-04 · Chase NBWF's fate.** Partly answered: VINE cites *NATO STANAG 5631/AComP-5631,
+      Narrowband Waveform Physical Layer, Ratification Draft, Edition 1, 2015*, so **NBWF
+      reached a ratification-draft STANAG** and did not die with the 2011 report. Whether
+      automatic relaying was ever added to it is still open. [gotenna-vine.md §6](gotenna-vine.md).
 - [ ] **H-05 · Contact the OpenMesh Voice Network project.** ARDC-funded, appears to be
       building this exact system on 50 kbps and four TDMA slots. Flagged in the literature
       review and never actioned.
