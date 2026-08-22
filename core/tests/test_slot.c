@@ -87,7 +87,10 @@ static void test_relay_is_next_slot(void)
     CHECK(manet_sched_take(&s, 8u, &out));
     CHECK_EQ(out.hdr.ttl, 7);      /* decremented in transit */
     CHECK_EQ(out.hdr.src, 0x05);   /* origin preserved, not rewritten to the relay */
-    CHECK_EQ(out.hdr.prev, 0x7F);  /* previous hop IS rewritten — that is what relaying does */
+    /* VOICE does NOT carry the relay's address — B-17. Concurrent copies must be the same
+     * waveform to combine, and this field is the one thing that would differ between two
+     * radios relaying in the same slot. Signalling still carries it. */
+    CHECK_EQ(out.hdr.prev, 0x05);
     CHECK_EQ(manet_sched_depth(&s), 0);
 }
 
@@ -237,6 +240,53 @@ static void test_queue_is_finite(void)
  * test would still catch, is the frame losing its place entirely: before the step-over the
  * payload landing in a reserved slot was dropped, which cost a whole hop, not a slot.
  */
+/*
+ * B-17, and the property the whole barrage premise rests on: two different radios relaying
+ * the SAME payload in the SAME slot must emit BYTE-IDENTICAL frames. If they do not, they
+ * are two waveforms in one slot and they collide instead of combining.
+ *
+ * This is the test that would have caught the defect. It compares the packed wire bytes,
+ * not the struct, because the wire is what the modulator sends.
+ */
+static void test_concurrent_relays_are_bit_identical(void)
+{
+    manet_sched_t s_a, s_b, s_c;
+    manet_pdu_t   heard = make_pdu(0x05u, 0x11u, 8u, MANET_PRIO_VOICE);
+    manet_pdu_t   beacon = make_pdu(0x05u, 0x12u, 8u, MANET_PRIO_SIGNALLING);
+    manet_pdu_t   tx_a, tx_b, out;
+    uint8_t       wire_a[MANET_HEADER_BYTES], wire_b[MANET_HEADER_BYTES];
+    size_t        i;
+
+    manet_sched_init(&s_a);
+    manet_sched_init(&s_b);
+
+    /* Two radios, 0x21 and 0x22, hear the same frame in the same slot and both relay. */
+    CHECK_EQ(manet_sched_relay(&s_a, &heard, 4u, 0x21u), MANET_OK);
+    CHECK_EQ(manet_sched_relay(&s_b, &heard, 4u, 0x22u), MANET_OK);
+    CHECK(manet_sched_take(&s_a, 5u, &tx_a));
+    CHECK(manet_sched_take(&s_b, 5u, &tx_b));
+
+    /* Zeroed first. manet_header_pack writes 42 bits and deliberately leaves the trailing
+     * 6 of the 6th byte untouched, so a caller can pack a header into a buffer that
+     * already holds payload or FEC. Comparing uninitialised padding would fail on stack
+     * contents rather than on anything the protocol says. Those six bits still have to be
+     * DEFINED before they go on air, for exactly the reason this test exists — see B-17. */
+    memset(wire_a, 0, sizeof wire_a);
+    memset(wire_b, 0, sizeof wire_b);
+    CHECK_EQ(manet_header_pack(&tx_a.hdr, wire_a, sizeof wire_a), MANET_OK);
+    CHECK_EQ(manet_header_pack(&tx_b.hdr, wire_b, sizeof wire_b), MANET_OK);
+    for (i = 0u; i < (size_t)MANET_HEADER_BYTES; i++) {
+        CHECK_EQ(wire_a[i], wire_b[i]);
+    }
+
+    /* Signalling is the opposite case and must KEEP the address: a beacon has TTL 1, is
+     * never relayed, never combines with anything, and neighbour discovery reads it. */
+    manet_sched_init(&s_c);
+    CHECK_EQ(manet_sched_relay(&s_c, &beacon, 4u, 0x21u), MANET_OK);
+    CHECK(manet_sched_take(&s_c, 5u, &out));
+    CHECK_EQ(out.hdr.prev, 0x21);
+}
+
 static void test_chain_advances_one_hop_per_slot(void)
 {
     enum { HOPS = 9 };
@@ -264,9 +314,9 @@ static void test_chain_advances_one_hop_per_slot(void)
         CHECK_EQ(tx.hdr.src, 0x01);       /* origin, all the way down the chain */
         CHECK_EQ(tx.hdr.seq, 0x77);
         CHECK_EQ(tx.hdr.ttl, 15 - hop);
-        /* ...while the previous hop advances with the frame. The forwarding rule tests
-         * this field, not the origin. */
-        CHECK_EQ(tx.hdr.prev, hop == 0u ? 0x01u : hop + 1u);
+        /* ...and `prev` does NOT advance, because this is voice. Every relay emits the
+         * origin here, so two radios relaying in the same slot emit the same bits. */
+        CHECK_EQ(tx.hdr.prev, 0x01);
 
         if (hop + 1u < (unsigned)HOPS) {
             CHECK_EQ(manet_sched_relay(&sched[hop + 1u], &tx, slot, (manet_addr_t)(hop + 2u)),
@@ -426,6 +476,7 @@ void test_slot_all(void)
     test_stale_entries_are_dropped();
     test_passive_acknowledgement();
     test_queue_is_finite();
+    test_concurrent_relays_are_bit_identical();
     test_chain_advances_one_hop_per_slot();
     test_reuse_distance_equals_slot_count();
 }

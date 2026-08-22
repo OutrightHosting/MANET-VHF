@@ -338,9 +338,18 @@ class Simulation:
 
         # The link is to whoever actually transmitted this copy — the previous hop, not
         # the origin. Getting this wrong builds a neighbour table full of strangers.
-        rx.nb.heard(pdu.prev, quality, slot)
-
+        #
+        # SIGNALLING ONLY, since B-17. A voice frame no longer carries the relaying
+        # radio's address, because concurrent copies have to be bit-identical to combine,
+        # so `prev` on a voice frame is still the ORIGIN and reading it here would record
+        # a link to a radio several hops away that we cannot hear at all — a neighbour
+        # table full of exactly the strangers this comment warns about.
+        #
+        # Beacons carry it and are the discovery mechanism. They have TTL 1, are never
+        # relayed, never need to combine, and since ADR-0014 have reserved slots of their
+        # own, so they arrive reliably.
         if pdu.type == BEACON:
+            rx.nb.heard(pdu.prev, quality, slot)
             if entries:
                 rx.nb.advert(pdu.prev, entries, slot)
             return
@@ -359,10 +368,10 @@ class Simulation:
             # cannot guarantee every radio is reached (Ni et al., MobiCom'99). Two radios
             # can both hear a relay that covers neither's far side, both fall silent, and
             # the frame stops with nothing to indicate it.
-            rx.sched.note_relay(pdu.src, pdu.seq, pdu.prev)
-            heard = rx.sched.heard(pdu.src, pdu.seq)
-            if heard and not rx.nb.still_needed(heard):
-                rx.sched.suppress(pdu.src, pdu.seq)
+            # Coverage suppression needed to know WHICH radios had relayed, and a voice
+            # frame no longer says. It was measured to do nothing anyway: disabling it
+            # under B-15 changed delivery not at all, to the decimal, at every density.
+            # An echo is now simply an echo.
             return
 
         pid = self._payload_id(pdu.src, pdu.seq, slot)
@@ -390,7 +399,13 @@ class Simulation:
             rx.known_symmetric = now_sym
             rx.topology_changed = True
 
-        if rx.nb.should_relay(pdu.prev):
+        # RELAY. The gate used to ask "do I reach anyone the previous hop does not", and
+        # a voice frame no longer names the previous hop. It was already doing very little
+        # -- OQ-0011's sweep found the frontier threshold at 255, i.e. relay always,
+        # delivered no better than at 250 -- and under barrage relaying, redundancy is the
+        # point: every extra copy in the slot is another copy that combines. Bounded by
+        # duplicate suppression and TTL, which is what bounded it before.
+        if True:
             # Stagger candidates by link quality so they do not all fire in the same
             # slot. Sized as a FRACTION of the frame, not a fixed slot count: it was
             # tuned at 15 ms slots and at 50 ms a three-slot spread costs 150 ms per hop,

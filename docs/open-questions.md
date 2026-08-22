@@ -1959,3 +1959,39 @@ an 80 m ridge would be cut off at 42 km where something would in fact get throug
 
 Raised 2026-08-22, while adding the height term — noticed because the model had a hill it could
 only ever treat as an obstruction.
+
+## OQ-0038
+
+**Six bits of every frame are undefined, and undefined bits break barrage combining.**
+
+**Status:** open · **Phase:** 1 (wire format) · **Relates to:** B-17,
+[ADR-0011](decisions/0011-barrage-relaying.md), [ADR-0007](decisions/0007-packet-switched-frame-architecture.md)
+
+The header is 42 bits and occupies 6 whole bytes, so 6 bits of the sixth byte carry nothing.
+`manet_header_pack` deliberately leaves them untouched — `core/tests/test_frame.c` asserts it,
+and the stated reason is sound: *"This is what lets a caller pack a header into a buffer that
+already holds payload or FEC without clobbering it."*
+
+**That is fine for a point-to-point frame and not fine for a barrage one.** B-17 established
+that concurrent relays must emit byte-identical frames or they collide instead of combining.
+Whatever those six bits hold, every radio relaying the same payload has to hold the *same*
+thing. Today nothing in the core specifies what they are, so the answer depends on what the
+firmware happens to leave in the buffer.
+
+It surfaced as a false failure: `test_concurrent_relays_are_bit_identical` packed into
+uninitialised stack arrays, and the two frames differed **only** in that sixth byte — 64
+against 107 — while every header field matched. The test was wrong to compare them. The
+question it accidentally asked is real.
+
+**Three ways it resolves, and they are not equivalent:**
+- the payload starts at bit 42 and the frame is packed contiguously, so those bits are voice
+  and identical between relays by construction — no action, but it must be *stated*;
+- the payload starts at byte 6 and the bits are true padding, in which case they must be
+  zeroed before transmission and something has to own that;
+- they get used — 6 bits is not nothing when FEC is 94 bits and OQ-0002 does not close.
+
+Nothing can decide this until frame assembly exists; the core carries no payload today
+(`Pdu`: *"One frame, header only — the harness carries no audio"*). **The decision belongs
+with whoever writes it, and it must be made deliberately rather than inherited from a buffer.**
+
+Raised 2026-08-22 while fixing B-17.

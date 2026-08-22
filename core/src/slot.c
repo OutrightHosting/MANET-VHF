@@ -151,9 +151,33 @@ manet_status_t manet_sched_relay(manet_sched_t *s, const manet_pdu_t *pdu,
         return MANET_ERR_TTL_EXPIRED;
     }
 
-    /* We are now the previous hop. The origin is untouched — it is what identifies the
-     * frame for duplicate suppression all the way across the network. */
-    manet_header_set_prev(&next.hdr, me);
+    /*
+     * We are now the previous hop -- EXCEPT for voice, which must not carry it.
+     *
+     * B-17. Under barrage relaying several radios repeat the same payload in the same
+     * slot, and the design depends on those copies being the SAME WAVEFORM so they
+     * combine rather than collide. Stamping our own address here makes them different:
+     * 8 bits of address, plus the 94 FEC bits computed over the frame, about 102 of 704
+     * on-air bits. Halford & Chugg (ITA 2010, III.B): "node-specific packet
+     * transformation must be suppressed: protocol headers can be modified only in a
+     * manner that is hop-dependent."
+     *
+     * TTL satisfies that rule and `prev` cannot. Under the pipelining discipline a hop
+     * IS a slot -- a radio that hears a frame in slot n relays it in slot n+1 and never
+     * later -- so every copy in a given slot has been decremented the same number of
+     * times. Verified over ~9400 slot-payload observations across three topologies: zero
+     * slots ever carried two copies of one payload with different TTLs. `prev` is about
+     * WHO you are rather than WHERE you are, so two relays side by side write different
+     * values in the same slot, and the chorus becomes a collision.
+     *
+     * Voice therefore leaves `prev` as the origin set it. Loop prevention does not need
+     * it: duplicate suppression keys on (src, seq) and TTL bounds the flood. Signalling
+     * keeps it, because a beacon has TTL 1, is never relayed, and never has to combine
+     * with anything -- and it is what neighbour discovery reads.
+     */
+    if (next.hdr.prio != (uint8_t)MANET_PRIO_VOICE) {
+        manet_header_set_prev(&next.hdr, me);
+    }
 
     /* The pipelining rule, and the reason this system works at all: the very next slot,
      * not the next frame. Crossing a frame boundary is not a special case — slot
