@@ -214,6 +214,12 @@ an instrument that can now report a failure.
       Narrowband Waveform Physical Layer, Ratification Draft, Edition 1, 2015*, so **NBWF
       reached a ratification-draft STANAG** and did not die with the 2011 report. Whether
       automatic relaying was ever added to it is still open. [gotenna-vine.md §6](gotenna-vine.md).
+- [ ] **H-06 · Re-check goTenna Pro X2 against the brief's own rejection.** The brief rejects it
+      because it "carries no voice"; they demonstrated real-time voice in Oct 2023. Establish
+      whether that shipped, whether it is real-time PTT or voice messaging, what it costs, and
+      whether it is obtainable and operable here. **If a body-worn product already does this,
+      that is material to whether to keep building one.** *Hours, and it should be hours
+      somebody spends.*
 - [ ] **H-05 · Contact the OpenMesh Voice Network project.** ARDC-funded, appears to be
       building this exact system on 50 kbps and four TDMA slots. Flagged in the literature
       review and never actioned.

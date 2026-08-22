@@ -299,7 +299,7 @@ the front, and neither of them knows or cares that four other radios carried it.
 | Doodle Labs Mesh Rider | Right concept, but 900 MHz variant is US ISM and unavailable here; UK-legal option is 2.4 GHz at 100 mW |
 | REGULUS MU7 | 868 MHz — UK duty cycle limits (1–10%) make it unusable for safety-related voice |
 | IWAVE Defensor-T4 | Technically the closest match — 400–470 MHz, 12.5 kHz, 6-slot mesh, belt brick. Rejected on supply chain grounds |
-| goTenna Pro X2 | Right bands, right topology, proven at 15 miles body-worn — but carries no voice |
+| goTenna Pro X2 | Right bands, right topology, proven at 15 miles body-worn — but carries no voice. **Rejection weakened 2026-08-21:** goTenna demonstrated real-time voice on Aspen Grove in Oct 2023, funded by US CBP. A *demonstration* with no published figures, not a shipping PTT product — but the reason this line gives no longer holds unexamined. See [gotenna-vine.md](gotenna-vine.md) |
 | DECT NR+ | Standardised mesh, but 1.9 GHz at 250 mW. Roughly 25 dB down on VHF at 5 W; insufficient node density to chain short hops |
 | PoC / WAVE PTX | Server-mediated, no direct mode, no off-network capability |
 | Satellite (Starlink, Iridium) | Solves reach-back to base, does nothing for leader-to-leader in a dispersed group |
