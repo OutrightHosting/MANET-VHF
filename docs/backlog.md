@@ -225,10 +225,29 @@ One item open: **M-06**.
       9.4 of 16. Split recorded as [OQ-0036](open-questions.md#oq-0036) — it is assumed, not
       measured.
 
-      **Still to decide: whether it goes on by default.** Off today. Aggregate across the
-      atlas under the old single-scale model was 94.4% → 92.2% of radios in the conversation,
-      but the average hid the finding: dispersed topologies were untouched, TTL-bound lines
-      *improved* (a lucky long link skips a hop), and only tight-group chains collapsed.
+      **Measured across eight draws of the field over all 33 atlas scenarios.** Aggregate is
+      94.4% clean, 97.1% typical, 86.9% on the worst ground — and the averages are worthless,
+      because they blend topologies that never fail with ones that fall apart. **19 of 33 hold
+      every radio in every draw.** What separates them is redundancy, not distance or hops:
+      every dispersed topology held; lines swung between 1/12 and 12/12; and the repeater
+      triangle reads a flawless 12/12 clean and collapses to 4/12 on bad ground. Recorded
+      against the constants in [geometry.py](../sim/manet/geometry.py) — `DEPENDABLE` fails one
+      link in seven under shadowing and `SEVERED` carries traffic one time in five.
+
+      **Both models now ship** and the atlas has a toggle, so the choice no longer has to be
+      made to see the results. What remains open is the *default* for the simulator and the
+      gates:
+
+      - clean stays the default for development and regression — B-15 was only findable
+        because a deterministic channel makes an exact difference visible, and six hypotheses
+        were eliminated that way;
+      - nothing quoted anywhere should come from a single draw. Publishing one nearly put a
+        wrong figure into the atlas, twice.
+      - **the gates need a decision that is not mine:** they are pass/fail against a
+        deterministic channel. Under shadowing, does Q1 pass on the median draw or the worst?
+        Worst-of-N is the right answer for a safety system and it will fail gates that pass
+        today. Q5 additionally needs `SEVERED` re-derived at ~3.0x or its partition
+        precondition stops holding.
 - [x] **M-07 · Gate the dense-cover case.** ✅ **Done 2026-08-22.** Gate **Q7** — twelve
       leaders in cover with a 350 m horizon, sweeping the spread and reporting where the
       group splits. Currently: holds together to **1.5 km**, splits at 2 km with 12/12
