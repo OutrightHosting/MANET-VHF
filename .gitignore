@@ -29,4 +29,3 @@ sim/out/
 .DS_Store
 
 # Agent scratch — worktrees, session state
-.claude/
