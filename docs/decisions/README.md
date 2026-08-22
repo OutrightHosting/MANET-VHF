@@ -27,6 +27,7 @@ decision stands and we stop discussing it.
 | [0010](0010-terrain-diffraction.md) | Terrain per-link by knife-edge diffraction, not as an environment | Accepted |
 | [0011](0011-barrage-relaying.md) | Barrage relaying: identical concurrent copies combine, election removed for voice | Accepted |
 | [0012](0012-network-time-authoritative.md) | The network is the clock; GPS is advisory and sanity-checked | Accepted (design) |
+| [0013](0013-what-we-take-from-vine.md) | Take VINE's header-inspection routing; leave its MAC and power model | Accepted |
 
 ## Format
 
