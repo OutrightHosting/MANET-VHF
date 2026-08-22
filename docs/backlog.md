@@ -334,62 +334,35 @@ One item open: **M-06**.
       densities while *widening* the gap was the clue that the interval was never the
       variable.
 
-- [ ] **B-17 · Concurrent relays do not transmit the same bits, and the simulator credits
-      them as if they do.** The barrage premise is that identical co-slot copies combine
-      rather than collide. Ours are not identical.
+- [x] **B-17 · Concurrent relays did not transmit the same bits, and the simulator credited
+      them as if they did.** ✅ **Fixed 2026-08-22.** `manet_sched_relay` stamped the relaying
+      radio's address into every frame, so barrage copies were never identical — 8 header bits
+      plus the 94 FEC bits computed over them, ~102 of 704 on-air bits. `_payload_key()` keyed
+      on `(src, seq, type)` and called the relay irrelevant, so the model credited combining
+      the wire format forbade.
 
-      `manet_sched_relay` stamps the relaying radio's own address into the header at every
-      hop — `manet_header_set_prev(&next.hdr, me)`, [slot.c:156](../core/src/slot.c). Two
-      relays firing the same payload in the same slot therefore emit **different waveforms**:
-      8 bits of address directly, plus the 94 FEC bits computed over the frame, so roughly
-      **102 of 704 on-air bits, 14.5% of the burst**.
+      **The rule:** a frame may only be modified in a way that every relay at the same distance
+      modifies identically. TTL obeys it — under slot pipelining a hop *is* a slot, verified
+      over ~9400 slot-payload observations with zero mixed-TTL slots. `prev` cannot, because it
+      encodes who you are rather than where you are.
 
-      Meanwhile `_payload_key()` in [radio.py](../sim/manet/radio.py) returns
-      `(src, seq, type)` and states outright that *"the relay carrying it is irrelevant"*. So
-      `Channel.decode` exempts those transmissions from each other's interference sum and
-      credits constructive combining for waveforms that are not the same waveform.
-      **`CONCURRENT_IDENTICAL` is modelling something the wire format cannot produce.**
+      Voice now leaves `prev` as the origin set it; signalling keeps it and is the discovery
+      mechanism. Three dependants went with it and all three were already measured as costing
+      nothing: neighbour discovery from voice frames, coverage suppression (B-15: no effect at
+      any density), and the `should_relay` gate (OQ-0011: relay-always delivered no better).
 
-      Halford & Chugg (ITA 2010, §III.B) are explicit that *"node-specific packet
-      transformation must be suppressed: protocol headers can be modified only in a manner
-      that is hop-dependent."* TTL satisfies that — every relay at a given hop decrements it
-      identically. `prev` does not.
+      | atlas, all 33 scenarios | radios in the conversation |
+      |---|---|
+      | the old optimistic figure | 775/800 · 96.9% |
+      | honest key, `prev` still on voice | **483/800 · 60.4%** |
+      | honest key, `prev` off voice | **775/800 · 96.9%** |
 
-      **This is upstream of D-01 and of every delivery figure in the project.** Until it is
-      fixed, a bench measurement of OQ-0028 would characterise a configuration that does not
-      ship, and the simulator's 99.93% rests on an assumption its own wire format violates.
+      **Every scenario returns to its previous figure — 0 of 33 differ.** The delivery numbers
+      published before this were right; the mechanism underneath them was not, and would not
+      have survived contact with hardware. `test_concurrent_relays_are_bit_identical` now
+      compares the packed wire bytes of two radios relaying one payload in one slot.
+      [OQ-0038](open-questions.md#oq-0038) records the six undefined padding bits it found.
 
-      Two candidate fixes, and they are not equivalent:
-      - take `prev` out of the voice header and derive the forwarding decision another way.
-        [literature-review.md](literature-review.md) already recommends E-CDS for the
-        independent reason that its forwarding rules do not depend on previous hop, so one
-        change buys both. Costs 8 header bits back to FEC.
-      - keep `prev` but exclude it and the FEC from the combining test, i.e. accept partial
-        combining. Needs a physical argument that a receiver locks to a copy despite 14.5% of
-        the burst differing — which is exactly what nobody has evidence for.
-
-      **MEASURED 2026-08-22.** `_payload_key()` now keys on every header field that actually
-      goes on air (`Channel.COMBINE_KEY = "wire"`, with `"payload"` kept to reproduce the old
-      behaviour). Re-running all 33 atlas scenarios:
-
-      | | optimistic | honest |
-      |---|---|---|
-      | radios in the conversation | 775/800 (96.9%) | **483/800 (60.4%)** |
-
-      **292 radios lost, 38%, across 16 of 33 scenarios.** The seven-position chain goes
-      99.93% at every density to 99.93% at one radio per position and **0.00% at three or
-      more.** Worst cards: 60 radios over 24 km 60/60 → **1/60**; 100 radios over 38 km
-      100/100 → 17/100; seven groups of six 42/42 → 12/42.
-
-      **What is untouched says the same thing from the other side.** Dense clusters hold
-      100/100 because everyone is in direct range and nothing relays. Lines hold because one
-      radio per position means relays are sequential, never concurrent. The damage lands
-      exactly where two or more radios relay the same payload in the same slot — which is
-      barrage doing its job.
-
-      This is not a modelling refinement. **The barrage design does not work with the current
-      wire format**, and every figure above one radio per position was the simulator crediting
-      a mechanism the frame forbids. *Blocks a meaningful OQ-0028 bench test and D-01.*
 
 ## Phase 0 — done
 
