@@ -225,9 +225,17 @@ static void test_queue_is_finite(void)
 }
 
 /*
- * The bucket chain, end to end. Node 0 originates in slot 0; each node hears the
- * previous one and relays in the following slot. Verifies the property the whole
- * design rests on: one hop per slot, sustained, with no frame-boundary stall.
+ * The bucket chain, end to end. Node 0 originates in slot 0; each node hears the previous
+ * one and relays in the following slot. Verifies the property the whole design rests on:
+ * one hop per slot, sustained, with no frame-boundary stall.
+ *
+ * One hop per VOICE slot. Since B-15 a reserved signalling slot recurs every
+ * MANET_SIGNAL_SLOT_PERIOD, and voice steps over it rather than transmitting in it, so the
+ * chain skips those slots and arrives that many slots later. The property being defended
+ * has not changed — the chain never waits for a frame boundary, and the delay is bounded
+ * and known in advance rather than being a stall. What is NOT acceptable, and what this
+ * test would still catch, is the frame losing its place entirely: before the step-over the
+ * payload landing in a reserved slot was dropped, which cost a whole hop, not a slot.
  */
 static void test_chain_advances_one_hop_per_slot(void)
 {
@@ -235,6 +243,9 @@ static void test_chain_advances_one_hop_per_slot(void)
     manet_sched_t sched[HOPS];
     manet_pdu_t   carried;
     unsigned      hop;
+    uint64_t      slot    = manet_slot_next_voice(0u);
+    uint64_t      first   = slot;
+    unsigned      skipped = 0u;
 
     for (hop = 0u; hop < (unsigned)HOPS; hop++) {
         manet_sched_init(&sched[hop]);
@@ -244,10 +255,11 @@ static void test_chain_advances_one_hop_per_slot(void)
     CHECK_EQ(manet_sched_originate(&sched[0], &carried, 0u), MANET_OK);
 
     for (hop = 0u; hop < (unsigned)HOPS; hop++) {
-        const uint64_t slot = hop;
-        manet_pdu_t    tx;
+        manet_pdu_t tx;
 
-        /* This node transmits in exactly the slot its hop index predicts. */
+        /* This node transmits in exactly the slot its hop index predicts, counting only
+         * slots voice is allowed to use. */
+        CHECK(!manet_slot_is_control(slot));
         CHECK(manet_sched_take(&sched[hop], slot, &tx));
         CHECK_EQ(tx.hdr.src, 0x01);       /* origin, all the way down the chain */
         CHECK_EQ(tx.hdr.seq, 0x77);
@@ -257,19 +269,26 @@ static void test_chain_advances_one_hop_per_slot(void)
         CHECK_EQ(tx.hdr.prev, hop == 0u ? 0x01u : hop + 1u);
 
         if (hop + 1u < (unsigned)HOPS) {
-            CHECK_EQ(manet_sched_relay(&sched[hop + 1u], &tx, slot, (manet_addr_t)(hop + 2u)), MANET_OK);
+            CHECK_EQ(manet_sched_relay(&sched[hop + 1u], &tx, slot, (manet_addr_t)(hop + 2u)),
+                     MANET_OK);
+            if (manet_slot_is_control(slot + 1u)) {
+                skipped++;
+            }
+            slot = manet_slot_next_voice(slot + 1u);
         }
     }
 
-    /* Nine hops in nine slots. At 4 x 15 ms that is 135 ms; at 3 x 20 ms, 180 ms.
-     * Waiting for the next frame would have cost nine frames — 540 ms — and the
-     * product would not work. */
+    /* Nine hops in nine voice slots, plus the reserved slots stepped over. At one slot in
+     * four that is two of them across nine hops. Waiting for the next frame would have cost
+     * nine frames instead, and the product would not work. */
+    CHECK_EQ(slot - first, (uint64_t)(HOPS - 1) + (uint64_t)skipped);
     {
-        manet_slot_pos_t first, last;
-        manet_slot_from_number(0u, &first);
-        manet_slot_from_number((uint64_t)HOPS - 1u, &last);
-        CHECK_EQ(last.start_us - first.start_us,
-                 (uint64_t)(HOPS - 1) * (uint64_t)MANET_SLOT_DURATION_US);
+        manet_slot_pos_t a, b;
+        manet_slot_from_number(first, &a);
+        manet_slot_from_number(slot, &b);
+        CHECK_EQ(b.start_us - a.start_us,
+                 ((uint64_t)(HOPS - 1) + (uint64_t)skipped)
+                     * (uint64_t)MANET_SLOT_DURATION_US);
     }
 }
 

@@ -156,13 +156,14 @@ class Simulation:
     # phase. One frame is too short — PTT leaves gaps between payloads — and permanent is
     # too long, since every radio would then protect a phase it never uses.
     TALKER_MEMORY = 16
-    # Keep voice out of the superframe's control slot. OFF: measured, it costs more than
-    # it buys. Excluding voice from 3.1% of slots took the 7-hop chain from 84.0% to 74.5%
-    # -- nine points, because the originator loses that payload AND the relay chain breaks
-    # for anything that would have landed there -- to buy roughly 24 s off a full table
-    # reconvergence that voice does not wait for anyway. Kept, wired and off, because the
-    # mechanism is sound and becomes worth having if voice ever stops needing every slot.
-    CONTROL_SLOTS = False
+    # Keep voice out of the reserved signalling slot. ON -- this is the B-15 fix.
+    # It was off because excluding voice from 3.1% of slots took the 7-hop chain from 84.0%
+    # to 74.5%. That nine-point cost was the originator LOSING the payload that landed in
+    # the slot, not the reservation itself; place() in the core now steps voice over the
+    # slot instead, and origination count is unchanged at every density. What the
+    # reservation buys is the thing B-15 turned out to be: somewhere for beacons to go that
+    # is not on top of live voice.
+    CONTROL_SLOTS = True
     DESIGNATED_RELAY = False
 
     def _schedule_beacons(self, slot):
@@ -192,11 +193,20 @@ class Simulation:
             # Win this slot?
             if not n.nb.nama_wins(slot):
                 continue
-            # NOT biased toward control slots. Tried, and it made things much worse: at
-            # one control slot per superframe there are far fewer of them than there are
+            # Beacons go in the reserved signalling slot, and only there. This reverses
+            # an earlier decision, and the reason it was right then and wrong now is the
+            # supply: at one control slot per superframe there were far fewer slots than
             # radios, so waiting for one starved beaconing outright and pushed recovery
-            # from 40 s to 112 s. The control slot earns its keep by being a slot voice
-            # cannot occupy, not by being the only slot a beacon may use.
+            # from 40 s to 112 s. At MANET_SIGNAL_SLOT_PERIOD there is one every four
+            # slots, which is more beacon opportunities than the old scheme had while
+            # taking none of them on top of voice.
+            #
+            # This is the other half of B-15. Reserving the slot is what gives beacons
+            # somewhere to go; confining beacons to it is what stops them going anywhere
+            # else. Without this half the reservation is airtime given up for nothing --
+            # beacons would still land on live voice in the other three slots.
+            if self.CONTROL_SLOTS and not is_control_slot(slot):
+                continue
             # Winning the election says nobody within two hops will transmit in this slot.
             # It says nothing about whether THIS radio can afford to. Two local rules still
             # apply, and dropping them when NAMA went in cost eight points of delivery
@@ -264,11 +274,12 @@ class Simulation:
         # One Codec2 payload per frame, beginning at this radio's own phase.
         if slot % self.cfg.slots_per_frame != self.voice_phase(n):
             return
-        # Control slots belong to the topology, not to voice. manet_slot_is_control() has
-        # existed in the core since the superframe went in, exported through the bridge and
-        # bound in Python, and nothing ever called it. Off by default -- see CONTROL_SLOTS.
-        if self.CONTROL_SLOTS and is_control_slot(slot):
-            return
+        # Control slots belong to the topology, not to voice -- but a talker whose phase
+        # lands on one steps over it rather than losing the payload. manet_sched_originate
+        # goes through place(), which does the stepping in the core. Dropping here instead
+        # is what made the reservation look unaffordable, and with the period a multiple of
+        # the frame it would silently cost one voice phase in four every one of its
+        # payloads while the other three lost none.
         # Voice TTL is bounded by the mouth-to-ear budget, not by the field width.
         pdu = Pdu(src=n.addr, prev=n.addr, dst=0xC0, type=VOICE,
                   seq=n.seq & 0xFF, prio=PRIO_VOICE, ttl=self.cfg.voice_ttl)
@@ -478,13 +489,13 @@ class Simulation:
                 # to say has no origination to protect, and yielding for it is expensive:
                 # on a sparse chain the single forward relay abstains and the frame dies
                 # there. Measured — the unconditional form failed the mobility criterion.
-                # Never relay into a control slot. Under barrage the flood fires in every
-                # slot unconditionally, which is why beacon reception fell from 26.9% to
-                # 21.8% -- receiver deafness doubled to 11.6% and collisions to 11.7%.
-                # NAMA keeps beacons clear of each other; nothing kept voice clear of them.
-                if self.CONTROL_SLOTS and is_control_slot(slot + 1):
-                    self.why["yielded control slot"] += 1
-                    return
+                # Never relay INTO a control slot -- but step over it, do not abandon the
+                # frame. Under barrage the flood fires in every slot unconditionally, which
+                # is why beacon reception fell from 26.9% to 21.8%: NAMA keeps beacons clear
+                # of each other and nothing kept voice clear of them. place() in the core
+                # advances a voice frame past the reserved slot, so the pipeline stretches
+                # by one slot instead of breaking. Returning here was the hole that made a
+                # reservation read as nine points of loss.
                 talking = (rx.last_origination_attempt is not None
                            and (slot - rx.last_origination_attempt) < self.TALKER_MEMORY)
                 if talking and (slot + 1) % spf == self.phase_of_addr(rx.addr):

@@ -304,6 +304,52 @@
 #define MANET_SUPERFRAME_SLOTS \
     ((uint64_t)MANET_SUPERFRAME_FRAMES * (uint64_t)MANET_SLOTS_PER_FRAME)
 
+/*
+ * How often a slot is reserved for signalling. One slot in this many carries beacons and
+ * topology updates, and voice steps over it rather than transmitting in it.
+ *
+ * This was one slot per superframe (3.1%) and switched off, because a reservation that
+ * DROPPED the voice payload landing in it cost nine points of delivery. B-15 established
+ * that the reservation was never the problem: with voice stepping over the slot instead of
+ * dying in it, the same mechanism takes a seven-position chain from 77.27% to 99.93% at six
+ * radios per position, and removes the density penalty entirely.
+ *
+ * 8 is one slot in eight, 12.5% of airtime, and it is set by the LATENCY budget rather than
+ * by delivery. Delivery is 99.93% at every period tried from 4 to 8 -- the density penalty
+ * is gone as soon as beacons have anywhere else to go, and buying more signalling airtime
+ * than that buys nothing. What differs is mouth-to-ear over seven hops, since voice steps
+ * over each reserved slot it meets:
+ *
+ *   period   airtime   7 hops   mouth-to-ear   links known (42 radios)
+ *        4     25.0%   8 slots        540 ms                     93.8%
+ *        5     20.0%   8 slots        524 ms                     84.3%
+ *        6     16.7%   7 slots        513 ms                     84.4%
+ *        7     14.3%   7 slots        506 ms                     61.1%
+ *        8     12.5%   6 slots        480 ms                     63.7%
+ *
+ * ADR-0011 budgets 500 ms and 7 hops. Only 8 fits, and it is the cheapest of the five in
+ * airtime as well. It is deliberately a multiple of MANET_SLOTS_PER_FRAME: the reservation
+ * then lands on the same voice phase every time, so one phase's talkers step to the next
+ * slot and the other three are untouched. A period coprime with the frame spreads the cost
+ * but crosses more reserved slots per hop, which is why 7 is both slower and worse-informed
+ * than 8.
+ *
+ * The links-known column is not the trade it looks like. At the twelve-radio design target
+ * the mobility gate is unaffected: dispersal converges 1.00 with delivery 1.00 at both
+ * period 4 and period 8, against 0.966 with no reservation at all. 63.7% is a 42-radio
+ * figure, and delivery there is 99.93% regardless.
+ *
+ * The scaling law is NBWF's, recorded in docs/nbwf-lessons.md section 5: signalling capacity
+ * has to grow with the number of radios that must advertise, not stay pinned at one slot per
+ * superframe. Measured here, links known at six radios per position: 23.5% at one slot in 32,
+ * 63.7% at one in 8, 93.8% at one in 4. Shortening the beacon interval does NOT substitute --
+ * it plateaus near 65% at period 8, because the binding constraint is the supply of reserved
+ * slots to elect within, not how often a radio wants to speak.
+ */
+#ifndef MANET_SIGNAL_SLOT_PERIOD
+#define MANET_SIGNAL_SLOT_PERIOD 8u
+#endif
+
 /* How many distinct relayers of one frame a radio remembers while deciding whether its
  * own relay is still needed. See manet_mpr_still_needed(). */
 #ifndef MANET_HEARD_MAX

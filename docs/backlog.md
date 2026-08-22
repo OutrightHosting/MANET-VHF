@@ -69,6 +69,8 @@ been filed rather than left to make the phase feel unfinished:
 
 ## Phase 0 — remaining, and none of it blocks Phase 1
 
+One item open: **M-06**.
+
 - [x] **M-01 · Re-run everything at γ = 4.** ✅ **Done 2026-08-21 — and the challenge does
       not survive being run.** Transplanting FFI's exponent alone is wrong in both
       directions: Egli has its own intercept and antenna-height term, so `exponent = 4.0` in
@@ -264,44 +266,36 @@ been filed rather than left to make the phase feel unfinished:
       until the asymmetry vanished, which isolated it to *which* radio in the middle group
       was speaking.
 
-- [ ] **B-15 · Per-hop loss scales with how many radios stand at each position.** Same seven
-      positions in a line, only the number of radios at each changes:
+- [x] **B-15 · Per-hop loss scales with how many radios stand at each position.**
+      ✅ Fixed 2026-08-22 — [ADR-0014](decisions/0014-reserved-signalling-slots.md).
+      **Beacons were jamming voice, and beacons scale with headcount while voice reception
+      does not.** Every decode failure at every density involved a beacon; there were zero
+      voice-against-voice collisions anywhere, so barrage combining was never at fault.
+      Six radios standing together are one radio for voice and six radios for beacons —
+      which is also why within-group spread measured exactly zero.
 
-      | radios per position | total | loss per hop |
+      | radios per position | before | after |
       |---|---|---|
-      | 1 | 7 | **1.2 pts** |
-      | 2 | 14 | 2.1 pts |
-      | 3 | 21 | 2.7 pts |
-      | 6 | 42 | **3.4 pts** |
+      | 1 | 92.54% | **99.93%** |
+      | 2 | 87.21% | **99.93%** |
+      | 3 | 83.41% | **99.93%** |
+      | 4 | 80.12% | **99.93%** |
+      | 5 | 79.39% | **99.93%** |
+      | 6 | 77.27% | **99.93%** |
 
-      **Backwards.** Six radios standing together should be more robust than one, not three
-      times worse per hop. It is why "seven groups of six, end to end" reads 12/42 while the
-      same seven positions with one radio each would hold above 90% the whole way.
+      Six hypotheses were measured and eliminated before the cause appeared: reception,
+      within-group variation, coverage suppression, beacon slot overhead, the neighbour
+      table cap, and barrage combining gain. The last of those survived one round and was
+      killed by a reductio — a meaningless constant 3 dB flattened the gradient *better*
+      than the proposed mechanism, which proved the test was measuring link margin.
 
-      Ruled out by measurement: **reception** (received / deaf / collided within 1.6 points
-      across group sizes — 42.9% vs 41.3% received), **within-group variation** (spread is
-      *exactly zero*; all six radios in a group get identical delivery), and **coverage
-      suppression** (disabled at the class level, results unchanged to the decimal).
-
-      Also ruled out: **beacon slot overhead**. It looked strong — beacons take 5% of slots
-      at 7 radios and 32% at 42, scaling exactly with radio count. Widening the interval
-      fourfold does buy real delivery (see B-16), but it *widens* the density gap rather
-      than closing it (0.4 vs 2.5 pts per hop), so it is a separate cost, not this one.
-
-      Root cause not established.
-
-- [ ] **B-16 · Beacons cost delivery even when the mesh is otherwise ideal.** Seven radios
-      in a line, nothing else contending, lose 1.2 points per hop. At four times the beacon
-      interval that falls to **0.4 points per hop** — end to end, 93% becomes 98%.
-
-      Beaconing occupies 5% of slots at 7 radios and 32% at 42. The interval was chosen for
-      a twelve-radio net and never revisited against voice.
-
-      Not simply a matter of turning it down: at sixteen times the interval delivery goes to
-      **zero**, because neighbour entries expire before the next beacon arrives and every
-      radio treats every other as unknown. The floor is the neighbour hold time, and the two
-      have to move together. Triggered updates (already implemented) should carry more of
-      the load so the periodic rate can drop.
+- [x] **B-16 · Beacons cost delivery even when the mesh is otherwise ideal.**
+      ✅ Fixed 2026-08-22 by the same change — [ADR-0014](decisions/0014-reserved-signalling-slots.md).
+      Same root cause as B-15, not a separate surcharge: seven radios in a line lost 1.24
+      points per hop purely to beaconing, and now lose 0.01. The fix was not fewer beacons
+      but somewhere for them to go — the earlier finding that a wider interval helped both
+      densities while *widening* the gap was the clue that the interval was never the
+      variable.
 
 ## Phase 0 — done
 

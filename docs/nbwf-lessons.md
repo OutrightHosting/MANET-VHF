@@ -111,6 +111,11 @@ argument — [OQ-0023](open-questions.md#oq-0023) should be re-opened against γ
 
 ## 5. Answers to open questions we already had
 
+> **Acted on 2026-08-22.** The recommendation in this section — that signalling needs a
+> fixed slot category voice cannot pre-empt, scaling with the number of relays — was the
+> answer to B-15, and had been sitting here unactioned while six other hypotheses were
+> measured and eliminated. See [ADR-0014](decisions/0014-reserved-signalling-slots.md).
+
 **[OQ-0004](open-questions.md#oq-0004) — where control traffic lives.** §4.8 gives a slot
 taxonomy we do not have. Their frame is nine slots of 22.5 ms:
 

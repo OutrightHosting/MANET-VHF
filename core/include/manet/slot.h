@@ -60,29 +60,32 @@ uint64_t manet_slot_start_us(uint64_t number);
 uint64_t manet_slot_burst_end_us(uint64_t number);
 
 /*
- * True if this slot is reserved for control traffic. Voice never transmits in one.
+ * True if this slot is reserved for signalling. Voice steps over one; it never transmits
+ * in one. Period is MANET_SIGNAL_SLOT_PERIOD — one slot in eight, 12.5% of the channel.
  *
- * The reservation is what gives beacons airtime that a talker cannot take, and the
- * superframe is what makes it affordable — one slot in thirty-two rather than one in four,
- * which is the difference between 3% of the channel and 25% of it.
+ * The reservation is what gives beacons airtime a talker cannot take. IN USE, and it is
+ * the B-15 fix.
  *
- * PROVIDED BUT DELIBERATELY NOT USED. Measured against NAMA election alone, reserving
- * control slots costs more than it buys at every superframe length tried:
+ * The table that used to sit here recorded this mechanism as measured and rejected:
  *
  *              cluster relays  mobility worst  static chain (woodland)
  *   NAMA only              0           90.3%                    92.5%
  *   + 1 slot in 8         99           88.0%                    83.5%
  *   + 1 slot in 32      8351           89.0%                    83.5%
  *
- * The reason is the same one that defeated an earlier attempt at fixed reserved slots: a
- * reservation punches a hole in the relay pipeline, the payload that needed that slot is
- * delayed, and the delay cascades into the payload behind. NAMA already prevents
- * beacon-against-beacon collisions without taking any airtime at all, which was the
- * reservation's whole purpose.
+ * Those numbers were real and the conclusion drawn from them was wrong. The reservation
+ * was not what cost the nine points — DROPPING the voice payload that landed in the
+ * reserved slot was. That punched a hole in the relay pipeline and the delay cascaded into
+ * the payload behind, which is exactly what the old comment described, and it was a
+ * property of the drop, not of the reservation. manet_slot_next_voice() below had existed
+ * since the superframe went in, unused, and is precisely the missing piece: voice steps
+ * over the slot and loses nothing. With the step-over in place() the same reservation takes
+ * a seven-position chain from 77.27% to 99.93% at six radios per position.
  *
- * Kept because the primitive is correct and tested, and because a configuration with more
- * slack — a lower vocoder rate, or a measured bit rate above 19.2 kbps — could afford it.
- * Do not wire it in without re-measuring.
+ * What the old comment got right is that NAMA prevents beacon-against-beacon collisions
+ * for free. What nobody had checked is that NAMA is an election among BEACONS. It cannot
+ * see voice, and under barrage relaying there is no voice-free slot left for it to find, so
+ * beacons were keying up over live voice by construction. See B-15 and docs/backlog.md.
  */
 bool manet_slot_is_control(uint64_t number);
 

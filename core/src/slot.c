@@ -32,9 +32,10 @@ uint64_t manet_slot_burst_end_us(uint64_t number)
 
 bool manet_slot_is_control(uint64_t number)
 {
-    /* The last slot of each superframe. Any fixed position would do; the last keeps it
-     * clear of the frame boundary where a talker starts a burst. */
-    return (number % MANET_SUPERFRAME_SLOTS) == (MANET_SUPERFRAME_SLOTS - 1u);
+    /* The last slot of each signalling period. Any fixed position would do; the last keeps
+     * it clear of the frame boundary where a talker starts a burst. */
+    return (number % (uint64_t)MANET_SIGNAL_SLOT_PERIOD)
+           == ((uint64_t)MANET_SIGNAL_SLOT_PERIOD - 1u);
 }
 
 uint64_t manet_slot_next_voice(uint64_t number)
@@ -80,7 +81,26 @@ static manet_sched_entry_t *free_entry(manet_sched_t *s)
  */
 static manet_status_t place(manet_sched_t *s, const manet_pdu_t *pdu, uint64_t slot)
 {
-    manet_sched_entry_t *e = entry_for_slot(s, slot);
+    manet_sched_entry_t *e;
+
+    /*
+     * Voice steps over a reserved signalling slot; it does not die in it.
+     *
+     * This one line is the B-15 fix. Every decode failure in a dense chain was a beacon
+     * landing on a voice payload -- 1940 of them at six radios per position, and not one
+     * voice-against-voice collision at any density, because barrage combining works. The
+     * reservation is what gives beacons somewhere to go, and stepping over is what stops
+     * the reservation costing a payload. An earlier attempt reserved the slot but DROPPED
+     * the frame that wanted it, which punched a hole in the relay pipeline and read as the
+     * reservation being a bad idea. It was not; the dropping was.
+     *
+     * Signalling is exempt: the slot exists precisely so beacons can use it.
+     */
+    if (pdu->hdr.prio != (uint8_t)MANET_PRIO_SIGNALLING) {
+        slot = manet_slot_next_voice(slot);
+    }
+
+    e = entry_for_slot(s, slot);
 
     if (e != NULL) {
         if (pdu->hdr.prio < e->pdu.hdr.prio) {
